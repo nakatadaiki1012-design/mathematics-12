@@ -162,8 +162,8 @@ function mmCalc(st) {
   let mx, mn;
   if (st.a > 0) { mn = inside ? { x: st.p, y: st.q } : (fs < fe ? { x: st.s, y: fs } : { x: st.e, y: fe }); mx = fs >= fe ? { x: st.s, y: fs } : { x: st.e, y: fe }; }
   else { mx = inside ? { x: st.p, y: st.q } : (fs > fe ? { x: st.s, y: fs } : { x: st.e, y: fe }); mn = fs <= fe ? { x: st.s, y: fs } : { x: st.e, y: fe }; }
-  const both = Math.abs(fs - fe) < 1e-9;
-  return { f, mx, mn, both, inside };
+  const both = Math.abs(fs - fe) < 1e-9, bothMx = both && st.a > 0, bothMn = both && st.a < 0;
+  return { f, mx, mn, bothMx, bothMn, inside };
 }
 UNITS.push({
   id: "minmax", sub: "I", name: "最大・最小", small: "範囲のある 2次関数",
@@ -173,24 +173,24 @@ UNITS.push({
   fix(st, k) { if (st.s >= st.e) { if (k === "s") st.e = Math.min(4, st.s + 0.5); else st.s = Math.max(-4, st.e - 0.5); } },
   hint: "👆 範囲のはし（光る点）を 左右に ドラッグできる",
   draw(G, st, ctx) {
-    const { f, mx, mn, both } = mmCalc(st);
+    const { f, mx, mn, bothMx, bothMn } = mmCalc(st);
     G.rect(st.s, G.y0, st.e - st.s, G.y1 - G.y0, { fill: "gold-soft", c: "none", op: em(ctx, "range", 1, 0.6), pop: H(ctx, "range") });
     G.vline(st.p, { c: "muted", dash: "6 6", w: em(ctx, "axis", 2.5, 1.2) });
     G.label(st.p, G.y1, "軸", { pos: "se", c: "muted", size: 13 });
     G.fn(f, { c: "muted", w: 1.5, dash: "5 5", op: 0.6 });
     G.fn(f, { c: "accent", w: 4, from: st.s, to: st.e });
     const showMx = !ctx.hl || H(ctx, "max"), showMn = !ctx.hl || H(ctx, "min");
-    if (showMx) { G.point(mx.x, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n", pop: H(ctx, "max") }); if (both) G.point(st.s === mx.x ? st.e : st.s, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n" }); }
-    if (showMn) G.point(mn.x, mn.y, { c: "blue", r: 7, label: `最小 ${N(mn.y)}`, pos: "s", pop: H(ctx, "min") });
+    if (showMx) { G.point(mx.x, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n", pop: H(ctx, "max") }); if (bothMx) G.point(st.s === mx.x ? st.e : st.s, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n" }); }
+    if (showMn) { G.point(mn.x, mn.y, { c: "blue", r: 7, label: `最小 ${N(mn.y)}`, pos: "s", pop: H(ctx, "min") }); if (bothMn) G.point(st.s === mn.x ? st.e : st.s, mn.y, { c: "blue", r: 7, label: `最小 ${N(mn.y)}`, pos: "s" }); }
     if (ctx.touch) {
       G.handle("s", st.s, 0, x => { st.s = clamp(snap(x, 0.5), -4, 3); this.fix(st, "s"); ctx.redraw(); }, { c: "gold", label: N(st.s), pos: "sw" });
       G.handle("e", st.e, 0, x => { st.e = clamp(snap(x, 0.5), -3, 4); this.fix(st, "e"); ctx.redraw(); }, { c: "gold", label: N(st.e), pos: "se" });
     }
   },
   band(st) {
-    const { mx, mn, both } = mmCalc(st);
-    const mxs = both ? `x = ${N(st.s)}, ${N(st.e)}` : `x = ${N(mx.x)}`;
-    return { g: "軸が範囲の中か外か → 頂点と はし の y の値をくらべる", n: `${vform(st.a, st.p, st.q)} <span class="mt">（${N(st.s)} ≦ x ≦ ${N(st.e)}）</span><br><span class="hl">最大 ${N(mx.y)}</span> <span class="mt">（${mxs}）</span>　<span class="bl">最小 ${N(mn.y)}</span> <span class="mt">（x = ${N(mn.x)}）</span>` };
+    const { mx, mn, bothMx, bothMn } = mmCalc(st), ends = `x = ${N(st.s)}, ${N(st.e)}`;
+    const mxs = bothMx ? ends : `x = ${N(mx.x)}`, mns = bothMn ? ends : `x = ${N(mn.x)}`;
+    return { g: "軸が範囲の中か外か → 頂点と はし の y の値をくらべる", n: `${vform(st.a, st.p, st.q)} <span class="mt">（${N(st.s)} ≦ x ≦ ${N(st.e)}）</span><br><span class="hl">最大 ${N(mx.y)}</span> <span class="mt">（${mxs}）</span>　<span class="bl">最小 ${N(mn.y)}</span> <span class="mt">（${mns}）</span>` };
   },
   points: ["まず<b>平方完成</b>して 軸と頂点を見る", "下に凸のとき：軸が範囲の中 → <b>頂点で最小</b>", "最大は 軸から<b>遠い方のはし</b>（上に凸なら 最大・最小が反対）"],
   ex: {

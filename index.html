@@ -140,14 +140,31 @@ sub, sup { font-size: .68em; line-height: 0; }
 
 /* 説明カード */
 .card { display: flex; flex-direction: column; overflow: hidden; }
-.card-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.card-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
 .card-head .cat { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
 .card-head h2 { font-family: var(--font-display); font-size: 22px; margin: 0; line-height: 1.3; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 10px; border: 1.5px solid var(--ink); border-radius: 5px; overflow: hidden; }
-.seg button { border: 0; background: var(--panel); padding: 7px 4px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.seg { flex: none; display: grid; grid-template-columns: repeat(2, auto); gap: 0; border: 1.5px solid var(--ink); border-radius: 5px; overflow: hidden; }
+.seg button { border: 0; background: var(--panel); padding: 5px 10px; font-weight: 700; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.stages { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top: 10px; }
+.stages button { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 4px 0; font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.stages button.done { color: var(--accent); border-color: var(--accent); }
+.stages button.done::before { content: "✓"; margin-right: 1px; }
+.stages button[aria-current="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.card-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--panel); }
+.card-foot:empty { display: none; }
+.card-foot .sp { flex: 1; }
+.card-foot .hintbtn { margin: 0; }
+.use { font-size: 13.5px; background: var(--blue-soft); border-radius: 4px; padding: 7px 10px; margin-bottom: 10px; line-height: 1.6; }
+.use b:first-child { color: var(--blue); }
+.say { display: block; font-weight: 500; margin-bottom: 4px; }
+.qcover .say { font-size: .75em; color: var(--muted); margin-bottom: 8px; }
+.qbox .tag.adv { border-color: var(--warm); color: var(--warm); }
+.note .see { display: block; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.note .see::before { content: "↖ "; }
 .seg button + button { border-left: 1.5px solid var(--ink); }
 .seg button[aria-selected="true"] { background: var(--ink); color: var(--panel); }
-.card-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 18px; }
+.card-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 14px; }
 .card-body p { margin: 0 0 10px; }
 .lead { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 
@@ -167,7 +184,7 @@ sub, sup { font-size: .68em; line-height: 0; }
 .points li b { color: var(--warm); }
 
 /* 例題 */
-.qbox { border: 1.5px solid var(--ink); border-radius: 4px; background: var(--bg); padding: 10px 12px; margin-bottom: 12px; font-weight: 700; line-height: 1.75; }
+.qbox { border: 1.5px solid var(--ink); border-radius: 4px; background: var(--bg); padding: 8px 12px; margin-bottom: 10px; font-weight: 700; line-height: 1.75; }
 .qbox .tag { display: inline-block; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; margin-right: 6px; font-weight: 500; vertical-align: 2px; background: var(--panel); }
 .steps { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .steps li { display: flex; gap: 8px; font-size: 14.5px; color: var(--muted); }
@@ -236,9 +253,13 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
   .lib .item { width: auto; flex: none; padding: 6px 10px; }
   .lib .item small { display: none; }
   .lib .drill-side { min-width: 100%; }
-  .stage-wrap { height: 58vh; min-height: 340px; flex: none; }
+  .stage-wrap { height: 50vh; min-height: 300px; flex: none; }
+  /* 答える前は グラフをたたんで スクロールを へらす */
+  .stage-wrap.covered { height: auto; min-height: 0; }
+  .stage-wrap.covered .stage-area { display: none; }
   .card { overflow: visible; }
   .card-body { overflow: visible; }
+  .card-foot { position: sticky; bottom: 0; z-index: 5; border-radius: 0 0 var(--r) var(--r); box-shadow: 0 -4px 10px rgba(0,0,0,.06); }
 }
 </style>
 </head>
@@ -265,12 +286,14 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
   <aside class="panel card" id="card" aria-label="説明">
     <div class="card-head" id="cardHead"></div>
     <div class="card-body" id="cardBody"></div>
+    <div class="card-foot" id="cardFoot"></div>
   </aside>
 </main>
 <script src="js/plot.js"></script>
 <script src="js/util.js"></script>
 <script src="js/units1.js"></script>
 <script src="js/units2.js"></script>
+<script src="js/lessons.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
