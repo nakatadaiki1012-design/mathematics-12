@@ -5,6 +5,8 @@
 const UNITS = [];
 const H = (ctx, k) => !!ctx.hl && ctx.hl.split(" ").includes(k);
 const em = (ctx, k, a, b) => H(ctx, k) ? a : b;
+/* 例題のとき：そのステップで強調するまで 答え（頂点・最大・辺の数など）を見せない */
+const RV = (ctx, k) => !ctx.ex || H(ctx, k) || H(ctx, "all");
 
 /* ---------- 1. 展開と因数分解 ---------- */
 UNITS.push({
@@ -25,22 +27,23 @@ UNITS.push({
     const tile = (x, y, w, h, fill, lab, key) => {
       const on = allOn || H(ctx, key) || H(ctx, "all");
       G.rect(x, y, w, -h, { fill: on ? fill : "chip", c: "ink", w: 1.5, pop: H(ctx, key) });
-      G.label(x + w / 2, y - h / 2, lab, { pos: "c", c: on ? "ink" : "muted", size: Math.min(26, 10 + Math.min(w, h) * 4) });
+      G.label(x + w / 2, y - h / 2, ctx.ex && !on ? "?" : lab, { pos: "c", c: on ? "ink" : "muted", size: Math.min(26, 10 + Math.min(w, h) * 4) });
     };
     // ラベルの位置をそろえるため、文字は中央に
     tile(0, 0, X, X, "accent-soft", "x²", "x2");
-    tile(X, 0, a, X, "blue-soft", N(a) + "x", "mid");
-    tile(0, -X, X, b, "blue-soft", N(b) + "x", "mid");
+    tile(X, 0, a, X, "blue-soft", (a === 1 ? "" : N(a)) + "x", "mid");
+    tile(0, -X, X, b, "blue-soft", (b === 1 ? "" : N(b)) + "x", "mid");
     tile(X, -X, a, b, "warm-soft", N(a * b), "const");
-    G.label(X / 2, 0, "x", { pos: "n", size: 17 }); G.label(X + a / 2, 0, N(a), { pos: "n", size: 17, c: "warm" });
-    G.label(0, -X / 2, "x", { pos: "w", size: 17 }); G.label(0, -X - b / 2, N(b), { pos: "w", size: 17, c: "warm" });
+    const side = RV(ctx, "mid");
+    G.label(X / 2, 0, "x", { pos: "n", size: 17 }); G.label(X + a / 2, 0, side ? N(a) : "?", { pos: "n", size: 17, c: "warm" });
+    G.label(0, -X / 2, "x", { pos: "w", size: 17 }); G.label(0, -X - b / 2, side ? N(b) : "?", { pos: "w", size: 17, c: "warm" });
   },
   band: st => ({ g: "(x + a)(x + b) = x² + (a + b)x + ab", n: `${sh2(st.a)}${sh2(st.b)} = <span class="hl">${P(1, st.a + st.b, st.a * st.b)}</span>` }),
   points: ["長方形の面積で考えると、<b>4 つの部分のたし算</b>になる", "x の係数は <b>a + b</b>、数だけの項は <b>a × b</b>", "因数分解はその逆：<b>かけて ab、たして a + b</b> の 2 数をさがす"],
   ex: {
     q: "x² + 5x + 6 を因数分解しよう", st: { a: 2, b: 3 },
     steps: [
-      { t: "形は x² + (a + b)x + ab。<b>かけて 6、たして 5</b> の 2 つの数をさがす", hl: "x2", n: "x² + 5x + 6 = (x + □)(x + □)" },
+      { t: "左上の正方形が x²。(x + □)(x + □) の □ に入る、<b>かけて 6、たして 5</b> の 2 つの数をさがす", hl: "x2", n: "x² + 5x + 6 = (x + □)(x + □)" },
       { t: "かけて 6 になるのは 1 と 6、2 と 3（右下の長方形）", hl: "const", n: "1 × 6 = 6、2 × 3 = 6" },
       { t: "そのうち、たして 5 になるのは <b>2 と 3</b>（まん中の 2 つ）", hl: "mid", n: "2 + 3 = 5 ✓" },
       { t: "答え：(x + 2)(x + 3)。図の長方形のたて × よこ になっている", hl: "all", n: "x² + 5x + 6 = (x + 2)(x + 3)" },
@@ -59,28 +62,36 @@ UNITS.push({
     return { q: `${f(a, b)} を展開すると？`, ...c, hint: "x の係数は a + b、数の項は a × b", exp: `x の係数は ${N(a)} + ${pn(b)} = ${N(a + b)}、数の項は ${N(a)} × ${pn(b)} = ${N(a * b)}<br><b>${P(1, a + b, a * b)}</b>`, st: { a, b } };
   },
 });
-function sh2(a) { return `(x ${a < 0 ? MI : "+"} ${Math.abs(a)})`; }
+function sh2(a) { return a === 0 ? "x" : `(x ${a < 0 ? MI : "+"} ${Math.abs(a)})`; }
 
 /* ---------- 2. 2次関数のグラフ ---------- */
 const quadView = { xmin: -6, xmax: 6, ymin: -6, ymax: 6 };
+/* 頂点のまわりが 大きく見える範囲（さわる以外） */
+function quadFit(st) { const { a, p, q } = st; return { xmin: p - 5, xmax: p + 5, ymin: a >= 0 ? Math.min(q, 0) - 2 : Math.min(q, 0) - 9, ymax: a >= 0 ? Math.max(q, 0) + 9 : Math.max(q, 0) + 2, equal: false }; }
 function vform(a, p, q) { return `y = ${co(a)}${sh("x", p)}²${sg(q)}`; }
 UNITS.push({
   id: "quad", sub: "I", name: "2次関数のグラフ", small: "y = a(x − p)² + q",
   init: () => ({ a: 1, p: 1, q: -2 }),
-  view: () => quadView,
+  view: (st, ctx) => ctx && ctx.touch ? quadView : quadFit(st),
   ctrls: [{ k: "a", label: "a", min: -3, max: 3, step: 0.5 }, { k: "p", label: "p", min: -4, max: 4, step: 0.5 }, { k: "q", label: "q", min: -4, max: 4, step: 0.5 }],
   hint: "👆 頂点（光る点）をドラッグしても動かせる",
   draw(G, st, ctx) {
     const { a, p, q } = st;
-    if (p !== 0 || q !== 0) G.fn(x => a * x * x, { c: "muted", w: em(ctx, "ghost", 3, 1.5), dash: "6 5", op: em(ctx, "ghost", 1, 0.6) });
+    if ((p !== 0 || q !== 0) && (ctx.touch || H(ctx, "ghost"))) G.fn(x => a * x * x, { c: "muted", w: em(ctx, "ghost", 3, 1.5), dash: "6 5", op: em(ctx, "ghost", 1, 0.6) });
     if (H(ctx, "ghost")) G.arrow(0, 0, p, q, { c: "blue", w: 2.5, pop: true });
-    G.vline(p, { c: "warm", dash: "7 6", w: em(ctx, "axis", 3, 1.5), op: em(ctx, "axis", 1, 0.7) });
-    G.label(p, G.y1, "軸 x = " + N(p), { pos: "se", c: "warm", size: em(ctx, "axis", 17, 13) });
+    if (RV(ctx, "axis")) {
+      G.vline(p, { c: "warm", dash: "7 6", w: em(ctx, "axis", 3, 1.5), op: em(ctx, "axis", 1, 0.7) });
+      const vx = ((st.view && st.view.xname) || "x").split("（")[0]; // 文章題では t など
+      G.label(p, G.y1, `軸 ${vx} = ` + N(p), { pos: "se", c: "warm", size: em(ctx, "axis", 17, 13) });
+    }
+    if (st.mark) G.point(st.mark[0], st.mark[1], { c: "blue", r: 8, label: st.mark[2], pos: st.mark[3] || "ne", size: 18, top: true });
     if (a === 0) G.infLine(0, q, { c: "accent", w: 3 });
-    else G.fn(x => a * (x - p) ** 2 + q, { c: "accent", w: 3.5 });
+    else G.fn(x => a * (x - p) ** 2 + q, { c: "accent", w: 3.5, from: st.from, to: st.to });
+    if (st.hline) { G.line(G.x0, st.hline[0], G.x1, st.hline[0], { c: "blue", w: 2, dash: "7 5" }); G.label(G.x1, st.hline[0], st.hline[1], { pos: "nw", c: "blue", size: 15 }); }
+    if (st.seg) { const [u, v] = st.seg; G.fn(x => a * (x - p) ** 2 + q, { c: "warm", w: 6, from: u, to: v }); G.line(u, 0, v, 0, { c: "warm", w: 7 }); [u, v].forEach(x => { G.line(x, 0, x, a * (x - p) ** 2 + q, { c: "warm", w: 1.5, dash: "4 4" }); G.label(x, 0, N(x), { pos: "n", d: 8, c: "warm", size: 15 }); }); }
     const lab = `頂点 (${N(p)}, ${N(q)})`;
     if (ctx.touch) G.handle("v", p, q, (x, y) => { st.p = clamp(snap(x, 0.5), -4, 4); st.q = clamp(snap(y, 0.5), -4, 4); ctx.redraw(); }, { label: lab, pos: a >= 0 ? "se" : "ne" });
-    else G.point(p, q, { c: "warm", r: em(ctx, "vertex", 8, 6), label: lab, pos: a >= 0 ? "se" : "ne", size: em(ctx, "vertex", 19, 15), pop: H(ctx, "vertex") });
+    else G.point(p, q, { c: "warm", r: em(ctx, "vertex", 8, 6), label: RV(ctx, "vertex") ? lab : "頂点", pos: a >= 0 ? "se" : "ne", size: em(ctx, "vertex", 19, 15), pop: H(ctx, "vertex") });
   },
   band: st => ({ g: "y = a(x − p)² + q　→　頂点 (p, q)、軸 x = p", n: st.a === 0 ? `y = ${N(st.q)} <span class="mt">（a = 0 だと 直線）</span>` : `${vform(st.a, st.p, st.q)}　<span class="mt">頂点</span> <span class="hl">${pt(st.p, st.q)}</span>　<span class="mt">軸</span> <span class="hl">x = ${N(st.p)}</span>` }),
   points: ["<b>p</b> で左右に、<b>q</b> で上下に動く（形は y = ax² のまま）", "頂点は <b>(p, q)</b>、軸は <b>x = p</b>", "a > 0 → 下に凸（∪）、a < 0 → 上に凸（∩）。|a| が大きいほど 細い"],
@@ -102,7 +113,7 @@ UNITS.push({
       return { q: `${vform(a, p, q)} の 頂点 は？`, ...c, hint: "y = a(x − p)² + q の頂点は (p, q)。かっこの中の符号に注意", exp: `${vform(a, p, q)} は p = ${N(p)}、q = ${N(q)}<br>頂点は <b>${pt(p, q)}</b>`, st, hl: "vertex" };
     }
     if (t === 1) {
-      const c = choose(`x = ${N(p)}`, [`x = ${N(-p)}`, `x = ${N(q)}`, `y = ${N(q)}`]);
+      const c = choose(`x = ${N(p)}`, [`x = ${N(-p)}`, `x = ${N(q)}`, `y = ${N(q)}`, `y = ${N(p)}`, `x = ${N(-q)}`, `x = ${N(p + 1)}`]);
       return { q: `${vform(a, p, q)} の 軸 は？`, ...c, hint: "軸は 頂点を通る たての線 x = p", exp: `頂点が ${pt(p, q)} なので、軸は <b>x = ${N(p)}</b>`, st, hl: "axis" };
     }
     const c = choose(vform(a, p, q), [vform(a, -p, q), vform(a, p, -q), vform(a, -p, -q)]);
@@ -113,12 +124,12 @@ UNITS.push({
 /* ---------- 3. 平方完成 ---------- */
 function sqcView(st) {
   const h = st.b / 2, k = st.c - h * h;
-  return { xmin: Math.min(-h - 4, -4), xmax: Math.max(-h + 4, 4), ymin: Math.min(k, 0) - 1.5, ymax: Math.max(st.c, k + 10, 4) + 1, equal: false };
+  return { xmin: Math.min(-h - 4, -4), xmax: Math.max(-h + 4, 4), ymin: Math.min(k, 0) - 2.5, ymax: Math.max(st.c, k + 10, 4) + 1, equal: false };
 }
 UNITS.push({
   id: "sqc", sub: "I", name: "平方完成", small: "x² + bx + c を (x − p)² + q に",
   init: () => ({ b: -6, c: 5 }),
-  view: () => ({ xmin: -8, xmax: 8, ymin: -10, ymax: 10, equal: false }),
+  view: st => sqcView(st),
   ctrls: [{ k: "b", label: "b", min: -8, max: 8, step: 2 }, { k: "c", label: "c", min: -6, max: 8, step: 1 }],
   hint: "b・c を動かすと、頂点の位置と 式が かわる",
   draw(G, st, ctx) {
@@ -126,14 +137,14 @@ UNITS.push({
     G.vline(-h, { c: "warm", dash: "7 6", w: 1.5, op: 0.7 });
     G.fn(x => x * x + st.b * x + st.c, { c: "accent", w: 3.5 });
     G.point(0, st.c, { c: "blue", r: 5, label: `y 切片 ${N(st.c)}`, pos: "e", op: em(ctx, "yint", 1, 0.8), size: 13 });
-    G.point(-h, k, { c: "warm", r: em(ctx, "vertex", 8, 6), label: `頂点 ${pt(-h, k)}`, pos: "se", size: em(ctx, "vertex", 19, 15), pop: H(ctx, "vertex") });
+    G.point(-h, k, { c: "warm", r: em(ctx, "vertex", 8, 6), label: RV(ctx, "vertex") ? `頂点 ${pt(-h, k)}` : "頂点", pos: -h < 0 ? "sw" : "se", size: em(ctx, "vertex", 19, 15), pop: H(ctx, "vertex") });
   },
   band(st) {
     const h = st.b / 2, k = st.c - h * h;
     if (h === 0) return { g: "x² + bx + c = (x + b/2)² − (b/2)² + c", n: `y = ${P(1, 0, st.c)} <span class="mt">（もう平方完成の形）</span>` };
     return { g: "x² + bx + c = (x + b/2)² − (b/2)² + c", n: `${P(1, st.b, st.c)} = ${sh("x", -h)}² ${MI} ${N(h * h)}${sg(st.c)} = <span class="hl">${sh("x", -h)}²${sg(k)}</span>` };
   },
-  points: ["x の係数の<b>半分</b>を使って ( x ＋ 半分 )² をつくる", "かっこを広げると (半分)² が<b>よけいに出る</b>ので、それをひく", "平方完成すると 頂点がわかる → グラフがかける"],
+  points: ["x の係数の<b>半分</b>を使って (x + 半分)² をつくる", "かっこを広げると (半分)² が<b>よけいに出る</b>ので、それをひく", "平方完成すると 頂点がわかる → グラフがかける"],
   ex: {
     q: "y = x² − 6x + 5 を平方完成して、頂点を求めよう", st: { b: -6, c: 5 },
     steps: [
@@ -150,12 +161,19 @@ UNITS.push({
       const c2 = choose(form(h, k), [form(-h, k), form(h, c + h * h), form(h, c), form(-h, c - h * h + 2)]);
       return { q: `y = ${P(1, b, c)} を平方完成すると？`, ...c2, hint: `x の係数 ${N(b)} の半分は ${N(h)}。(x ${h < 0 ? MI : "+"} ${Math.abs(h)})² をつくって、よけいな ${h * h} をひく`, exp: `${P(1, b, c)} = ${sh("x", -h)}² ${MI} ${h * h}${sg(c)}<br>= <b>${form(h, k)}</b>`, st, hl: "vertex" };
     }
-    const c2 = choose(pt(-h, k), [pt(h, k), pt(-h, c), pt(h, -k), pt(-h, -k)]);
-    return { q: `y = ${P(1, b, c)} の 頂点 は？`, ...c2, hint: "まず平方完成して y = (x − p)² + q の形にしよう", exp: `y = ${form(h, k)} なので、頂点は <b>${pt(-h, k)}</b>`, st, hl: "vertex" };
+    const c2 = choose(pt(-h, k), [pt(h, k), pt(-h, c), pt(h, -k), pt(-h, -k), pt(-h, k + 1), pt(h, c)]);
+    return { q: `y = ${P(1, b, c)} の 頂点 は？`, ...c2, hint: "まず平方完成して y = (x − p)² + q の形にしよう", exp: `${form(h, k)} なので、頂点は <b>${pt(-h, k)}</b>`, st, hl: "vertex" };
   },
 });
 
 /* ---------- 4. 最大・最小 ---------- */
+/* x の範囲 [x0, x1] のグラフが 全部入る表示 */
+function mmView(st, x0, x1) {
+  const f = x => st.a * (x - st.p) ** 2 + st.q, ys = [f(x0), f(x1), st.q, 0];
+  if (st.p > x0 && st.p < x1) ys.push(st.q);
+  const lo = Math.min(...ys), hi = Math.max(...ys), pad = Math.max(1.5, (hi - lo) * 0.15);
+  return { xmin: Math.min(x0, st.p) - 1.5, xmax: Math.max(x1, st.p) + 1.5, ymin: lo - pad * 1.5, ymax: hi + pad, equal: false };
+}
 function mmCalc(st) {
   const f = x => st.a * (x - st.p) ** 2 + st.q;
   const fs = f(st.s), fe = f(st.e), inside = st.p >= st.s && st.p <= st.e;
@@ -168,9 +186,9 @@ function mmCalc(st) {
 UNITS.push({
   id: "minmax", sub: "I", name: "最大・最小", small: "範囲のある 2次関数",
   init: () => ({ a: 1, p: 1, q: -4, s: 0, e: 3 }),
-  view: () => ({ xmin: -5, xmax: 5, ymin: -6, ymax: 8, equal: false }),
-  ctrls: [{ k: "a", label: "向き", opts: [[1, "下に凸 ∪"], [-1, "上に凸 ∩"]] }, { k: "p", label: "軸 p", min: -3, max: 3, step: 0.5 }, { k: "q", label: "q", min: -4, max: 4, step: 0.5 }, { k: "s", label: "左はし", min: -4, max: 3, step: 0.5 }, { k: "e", label: "右はし", min: -3, max: 4, step: 0.5 }],
-  fix(st, k) { if (st.s >= st.e) { if (k === "s") st.e = Math.min(4, st.s + 0.5); else st.s = Math.max(-4, st.e - 0.5); } },
+  view: (st, ctx) => ctx && ctx.touch ? mmView(st, -3, 3) : mmView(st, st.s, st.e),
+  ctrls: [{ k: "a", label: "向き", opts: [[1, "下に凸 ∪"], [-1, "上に凸 ∩"]] }, { k: "p", label: "軸 p", min: -2, max: 2, step: 0.5 }, { k: "q", label: "q", min: -4, max: 4, step: 0.5 }, { k: "s", label: "左はし", min: -3, max: 2.5, step: 0.5 }, { k: "e", label: "右はし", min: -2.5, max: 3, step: 0.5 }],
+  fix(st, k) { if (st.s >= st.e) { if (k === "s") st.e = Math.min(3, st.s + 0.5); else st.s = Math.max(-3, st.e - 0.5); } },
   hint: "👆 範囲のはし（光る点）を 左右に ドラッグできる",
   draw(G, st, ctx) {
     const { f, mx, mn, bothMx, bothMn } = mmCalc(st);
@@ -179,39 +197,42 @@ UNITS.push({
     G.label(st.p, G.y1, "軸", { pos: "se", c: "muted", size: 13 });
     G.fn(f, { c: "muted", w: 1.5, dash: "5 5", op: 0.6 });
     G.fn(f, { c: "accent", w: 4, from: st.s, to: st.e });
-    const showMx = !ctx.hl || H(ctx, "max"), showMn = !ctx.hl || H(ctx, "min");
-    if (showMx) { G.point(mx.x, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n", pop: H(ctx, "max") }); if (bothMx) G.point(st.s === mx.x ? st.e : st.s, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n" }); }
+    const showMx = (!ctx.hl || H(ctx, "max")) && st.only !== "min", showMn = (!ctx.hl || H(ctx, "min")) && st.only !== "max";
+    if (showMx) { G.point(mx.x, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "ne", d: 12, pop: H(ctx, "max") }); if (bothMx) G.point(st.s === mx.x ? st.e : st.s, mx.y, { c: "warm", r: 7, label: `最大 ${N(mx.y)}`, pos: "n" }); }
     if (showMn) { G.point(mn.x, mn.y, { c: "blue", r: 7, label: `最小 ${N(mn.y)}`, pos: "s", pop: H(ctx, "min") }); if (bothMn) G.point(st.s === mn.x ? st.e : st.s, mn.y, { c: "blue", r: 7, label: `最小 ${N(mn.y)}`, pos: "s" }); }
     if (ctx.touch) {
-      G.handle("s", st.s, 0, x => { st.s = clamp(snap(x, 0.5), -4, 3); this.fix(st, "s"); ctx.redraw(); }, { c: "gold", label: N(st.s), pos: "sw" });
-      G.handle("e", st.e, 0, x => { st.e = clamp(snap(x, 0.5), -3, 4); this.fix(st, "e"); ctx.redraw(); }, { c: "gold", label: N(st.e), pos: "se" });
+      G.handle("s", st.s, 0, x => { st.s = clamp(snap(x, 0.5), -3, 2.5); this.fix(st, "s"); ctx.redraw(); }, { c: "gold", label: N(st.s), pos: "sw" });
+      G.handle("e", st.e, 0, x => { st.e = clamp(snap(x, 0.5), -2.5, 3); this.fix(st, "e"); ctx.redraw(); }, { c: "gold", label: N(st.e), pos: "se" });
     }
   },
   band(st) {
     const { mx, mn, bothMx, bothMn } = mmCalc(st), ends = `x = ${N(st.s)}, ${N(st.e)}`;
     const mxs = bothMx ? ends : `x = ${N(mx.x)}`, mns = bothMn ? ends : `x = ${N(mn.x)}`;
-    return { g: "軸が範囲の中か外か → 頂点と はし の y の値をくらべる", n: `${vform(st.a, st.p, st.q)} <span class="mt">（${N(st.s)} ≦ x ≦ ${N(st.e)}）</span><br><span class="hl">最大 ${N(mx.y)}</span> <span class="mt">（${mxs}）</span>　<span class="bl">最小 ${N(mn.y)}</span> <span class="mt">（${mns}）</span>` };
+    const lt = st.only ? "<" : "≦";
+    const mxH = st.only === "min" ? "" : `<span class="hl">最大 ${N(mx.y)}</span> <span class="mt">（${mxs}）</span>　`, mnH = st.only === "max" ? "" : `<span class="bl">最小 ${N(mn.y)}</span> <span class="mt">（${mns}）</span>`;
+    return { g: "軸が範囲の中か外か → 頂点と はし の y の値をくらべる", n: `${vform(st.a, st.p, st.q)} <span class="mt">（${N(st.s)} ${lt} x ${lt} ${N(st.e)}）</span><br>${mxH}${mnH}` };
   },
   points: ["まず<b>平方完成</b>して 軸と頂点を見る", "下に凸のとき：軸が範囲の中 → <b>頂点で最小</b>", "最大は 軸から<b>遠い方のはし</b>（上に凸なら 最大・最小が反対）"],
   ex: {
     q: "y = x² − 2x − 3（0 ≦ x ≦ 3）の 最大値・最小値は？", st: { a: 1, p: 1, q: -4, s: 0, e: 3 },
     steps: [
-      { t: "平方完成する", n: "y = x² − 2x − 3 = (x − 1)² − 4" },
+      { t: "平方完成する", hl: "none", n: "y = x² − 2x − 3 = (x − 1)² − 4" },
       { t: "範囲 0 ≦ x ≦ 3 に色をぬる。軸は x = 1", hl: "range axis", n: "軸 x = 1、範囲 0 ≦ x ≦ 3" },
       { t: "軸 x = 1 は<b>範囲の中</b> → 頂点で最小", hl: "range min", n: "最小値 −4（x = 1）" },
-      { t: "軸から遠いはしは x = 3 → (3 − 1)² − 4 = <b>0</b>", hl: "range max min", n: "最大値 0（x = 3）、最小値 −4（x = 1）" },
+      { t: "最大は 軸から遠いはし。x = 0 は軸から 1、x = 3 は軸から 2 → 遠いのは x = 3。(3 − 1)² − 4 = <b>0</b>", hl: "range max min", n: "最大値 0（x = 3）、最小値 −4（x = 1）" },
     ],
   },
   gen() {
-    const p = rint(-2, 2), q = rint(-4, 2), s = rint(-3, 1), e = s + rint(2, 4), st = { a: 1, p, q, s, e };
+    const a = Math.random() < 0.7 ? 1 : -1, p = rint(-2, 2), q = a > 0 ? rint(-4, 2) : rint(-2, 4), s = rint(-3, 1), e = s + rint(2, 4);
+    const st = { a, p, q, s, e }; st.view = mmView(st, s, e);
     const { f, mx, mn } = mmCalc(st), wantMax = Math.random() < 0.5;
     const ans = wantMax ? mx.y : mn.y;
     const c = chooseNum(ans, [f(s), f(e), q, f(p + 1), wantMax ? mn.y : mx.y]);
-    const word = wantMax ? "最大値" : "最小値";
+    const word = wantMax ? "最大値" : "最小値", inside = p >= s && p <= e;
     return {
-      q: `y = ${P(1, -2 * p, p * p + q)}（${N(s)} ≦ x ≦ ${N(e)}）の <b>${word}</b> は？`, ...c,
-      hint: `平方完成すると ${vform(1, p, q)}。軸 x = ${N(p)} は 範囲の${p >= s && p <= e ? "中" : "外"}`,
-      exp: `${vform(1, p, q)}、x = ${N(s)} のとき ${N(f(s))}、x = ${N(e)} のとき ${N(f(e))}${p >= s && p <= e ? `、頂点で ${N(q)}` : ""}<br>${word}は <b>${N(ans)}</b>`,
+      q: `y = ${P(a, -2 * a * p, a * p * p + q)}（${N(s)} ≦ x ≦ ${N(e)}）の <b>${word}</b> は？`, ...c,
+      hint: `平方完成すると ${vform(a, p, q)}（${a > 0 ? "下に凸" : "上に凸"}）。軸 x = ${N(p)} は 範囲の${inside ? "中" : "外"}`,
+      exp: `${vform(a, p, q)}、x = ${N(s)} のとき ${N(f(s))}、x = ${N(e)} のとき ${N(f(e))}${inside ? `、頂点で ${N(q)}` : ""}<br>${word}は <b>${N(ans)}</b>`,
       st, hl: wantMax ? "range max" : "range min",
     };
   },
@@ -226,16 +247,17 @@ UNITS.push({
   view: () => ({ xmin: -7, xmax: 7, ymin: -9, ymax: 8, equal: false }),
   ctrls: [{ k: "b", label: "b", min: -6, max: 6, step: 1 }, { k: "c", label: "c", min: -6, max: 9, step: 1 }],
   hint: "c を大きくすると グラフが上がって、共有点が 2 → 1 → 0 個に",
+  // （帯の式が長くならないように、y = … は 帯の上の行だけ）
   draw(G, st, ctx) {
     const D = st.b * st.b - 4 * st.c;
     G.fn(x => x * x + st.b * x + st.c, { c: "accent", w: 3.5 });
     const rs = rootsOf(st.b, st.c);
-    rs.forEach((r, i) => G.point(r, 0, { c: "warm", r: em(ctx, "roots", 8, 6.5), label: "x = " + nice(r), pos: rs.length === 2 ? (i ? "se" : "sw") : "s", pop: H(ctx, "roots") }));
+    rs.forEach((r, i) => G.point(r, 0, { c: "warm", r: em(ctx, "roots", 8, 6.5), label: "x = " + nice(r), pos: rs.length === 2 ? (i ? "ne" : "nw") : "n", d: 12, pop: H(ctx, "roots") }));
     G.textPx(14, G.h - 16, `D = ${N(D)}　→　共有点 ${rs.length} 個`, { c: D > 0 ? "warm" : D === 0 ? "gold" : "blue", size: em(ctx, "D", 20, 16) });
   },
   band(st) {
     const D = st.b * st.b - 4 * st.c, n = D > 0 ? 2 : D === 0 ? 1 : 0;
-    return { g: "D = b² − 4ac　D > 0 → 2 個、D = 0 → 1 個（接する）、D < 0 → 0 個", n: `y = ${P(1, st.b, st.c)}　D = ${pn(st.b)}² − 4·1·${pn(st.c)} = <span class="hl">${N(D)}</span>　<span class="mt">→ 共有点</span> <span class="hl">${n} 個</span>` };
+    return { g: "D = b² − 4ac　D > 0 → 2 個、D = 0 → 1 個（接する）、D < 0 → 0 個", n: `y = ${P(1, st.b, st.c)}<br>D = ${pn(st.b)}² − 4·1·${pn(st.c)} = <span class="hl">${N(D)}</span>　<span class="mt">→ 共有点</span> <span class="hl">${n}&nbsp;個</span>` };
   },
   points: ["グラフと x 軸の共有点の x 座標 ＝ <b>2次方程式の解</b>", "判別式 <b>D = b² − 4ac</b> で 解の個数がわかる", "D > 0 → 2 個、D = 0 → 1 個（接する）、D < 0 → 0 個"],
   ex: {
@@ -250,9 +272,9 @@ UNITS.push({
   gen() {
     const t = rint(0, 2);
     if (t === 0) {
-      const r1 = rint(-5, 4), r2 = r1 + rint(1, 5), b = -(r1 + r2), c = r1 * r2;
-      const f = (u, v) => `x = ${N(u)}, ${N(v)}`;
-      const ch = choose(f(r1, r2), [f(-r2, -r1), f(r1, -r2), f(-r1, r2), f(r1 + 1, r2 + 1)]);
+      const r1 = rint(-5, 4), r2 = r1 + rint(1, Math.min(5, 6 - r1)), b = -(r1 + r2), c = r1 * r2;
+      const f = (u, v) => u === v ? null : `x = ${N(Math.min(u, v))}, ${N(Math.max(u, v))}`; // 「x = 2, 2」のような形は出さない
+      const ch = choose(f(r1, r2), [f(-r2, -r1), f(r1, -r2), f(-r1, r2), f(r1 + 1, r2 + 1), f(r1 - 1, r2 - 1)], 4, () => f(r1 + nz(-2, 2), r2 + nz(-2, 2)) || f(r1 - 3, r2 + 2));
       return { q: `${P(1, b, c)} = 0 を解くと？`, ...ch, hint: `かけて ${N(c)}、たして ${N(b)} の 2 数で因数分解`, exp: `${sh2(-r1)}${sh2(-r2)} = 0 より <b>${f(r1, r2)}</b>`, st: { b, c }, hl: "roots" };
     }
     const kind = rint(0, 2); let b, c;
@@ -280,10 +302,21 @@ UNITS.push({
   view: () => ({ xmin: -6, xmax: 6, ymin: -9, ymax: 7, equal: false }),
   ctrls: [{ k: "sg", label: "記号", opts: [["<", "< 0"], ["≦", "≦ 0"], [">", "> 0"], ["≧", "≧ 0"]] }, { k: "al", label: "α", min: -5, max: 4, step: 1 }, { k: "be", label: "β", min: -4, max: 5, step: 1 }],
   fix(st, k) { if (st.al >= st.be) { if (k === "al") st.be = Math.min(5, st.al + 1); else st.al = Math.max(-5, st.be - 1); } },
-  hint: "記号をかえると、x 軸の上の色（答えの範囲）が かわる",
+  hint: "記号をかえると、x 軸にぬった太い線（答えの範囲）が かわる",
   draw(G, st, ctx) {
     const f = x => (x - st.al) * (x - st.be), below = st.sg === "<" || st.sg === "≦", closed = st.sg === "≦" || st.sg === "≧";
     G.fn(f, { c: "muted", w: 2 });
+    if (st.al2 != null) { // 2 つ目の不等式（連立）
+      const g = x => (x - st.al2) * (x - st.be2);
+      G.fn(g, { c: "blue", w: 2, dash: "6 4" });
+      G.label(st.be2 + 0.6, g(st.be2 + 0.6), P(1, -(st.al2 + st.be2), st.al2 * st.be2), { pos: "e", c: "blue", size: 13 });
+      [st.al2, st.be2].forEach(r => G.point(r, 0, { c: "blue", r: 5, hollow: true }));
+    }
+    if (st.segs) { // 答えの範囲を はっきり指定
+      if (!ctx.hl || H(ctx, "ans")) st.segs.forEach(([a, b]) => G.line(a, 0, b, 0, { c: "warm", w: 7, pop: true }));
+      [st.al, st.be].forEach((r, i) => G.point(r, 0, { c: "warm", r: 7, hollow: true, label: N(r), pos: i ? "ne" : "nw", d: 12 }));
+      return;
+    }
     const showAns = !ctx.hl || H(ctx, "ans") || H(ctx, "below");
     if (showAns) {
       if (below) G.fn(f, { c: "warm", w: 5, from: st.al, to: st.be, pop: H(ctx, "below") });
@@ -293,7 +326,7 @@ UNITS.push({
       const yy = 0, o = { c: "warm", w: 7, pop: H(ctx, "ans") };
       if (below) G.line(st.al, yy, st.be, yy, o); else { G.line(G.x0, yy, st.al, yy, o); G.line(st.be, yy, G.x1, yy, o); }
     }
-    [st.al, st.be].forEach((r, i) => G.point(r, 0, { c: "warm", r: 7, hollow: !closed, label: N(r), pos: i ? "se" : "sw", size: em(ctx, "roots", 19, 15) }));
+    [st.al, st.be].forEach((r, i) => G.point(r, 0, { c: "warm", r: 7, hollow: !closed, label: N(r), pos: i ? "ne" : "nw", d: 12, size: em(ctx, "roots", 19, 15) }));
   },
   band(st) {
     const b = -(st.al + st.be), c = st.al * st.be;
@@ -303,16 +336,16 @@ UNITS.push({
   ex: {
     q: "x² − x − 6 < 0 を解こう", st: { al: -2, be: 3, sg: "<" },
     steps: [
-      { t: "左辺を因数分解する", n: "x² − x − 6 = (x + 2)(x − 3)" },
+      { t: "左辺を因数分解する", hl: "none", n: "x² − x − 6 = (x + 2)(x − 3)" },
       { t: "グラフと x 軸の交点は x = −2, 3", hl: "roots", n: "交点 x = −2, 3" },
       { t: "<b>< 0</b> は、グラフが x 軸より<b>下</b>の部分", hl: "roots below", n: "(x + 2)(x − 3) < 0 → グラフが下" },
       { t: "その x の範囲が答え：<b>−2 < x < 3</b>", hl: "roots below ans", n: "−2 < x < 3" },
     ],
   },
   gen() {
-    const al = rint(-5, 3), be = al + rint(1, 5), s = pick(["<", ">", "≦", "≧"]), st = { al, be, sg: s };
+    const al = rint(-5, 3), be = al + rint(1, Math.min(5, 5 - al)), s = pick(["<", ">", "≦", "≧"]), st = { al, be, sg: s };
     const other = { "<": ">", ">": "<", "≦": "≧", "≧": "≦" }[s], flip = { "<": "≦", "≦": "<", ">": "≧", "≧": ">" }[s];
-    const c = choose(ineqAns(al, be, s), [ineqAns(al, be, other), ineqAns(al, be, flip), ineqAns(-be, -al, s)]);
+    const c = choose(ineqAns(al, be, s), [ineqAns(al, be, other), ineqAns(al, be, flip), ineqAns(-be, -al, s), ineqAns(al - 1, be, s), ineqAns(al, be + 1, other)]);
     const below = s === "<" || s === "≦";
     return { q: `${P(1, -(al + be), al * be)} ${s} 0 を解くと？`, ...c, one: true, hint: `因数分解すると ${sh2(-al)}${sh2(-be)}。${below ? "0 より小さい → グラフが下" : "0 より大きい → グラフが上"}`, exp: `${sh2(-al)}${sh2(-be)} ${s} 0、交点は x = ${N(al)}, ${N(be)}<br>グラフが x 軸より${below ? "下（内側）" : "上（外側）"}${s === "≦" || s === "≧" ? "、= もふくむ" : ""}<br><b>${ineqAns(al, be, s)}</b>`, st, hl: "roots below ans" };
   },
@@ -334,25 +367,36 @@ function tv(s) {
 UNITS.push({
   id: "trig", sub: "I", name: "三角比", small: "半径 1 の円で sin・cos・tan",
   init: () => ({ t: 120 }),
-  view: () => ({ xmin: -1.45, xmax: 1.45, ymin: -0.35, ymax: 1.45, gridX: 0.5, gridY: 0.5 }),
+  view: () => ({ xmin: -1.45, xmax: 1.45, ymin: -0.35, ymax: 1.45, gridX: 0.5, gridY: 0.5, tickY: 0.5, xticks: [[-1, "−1"], [-0.5, "−½"], [0.5, "½"], [1, "1"]].map(([v, l]) => ({ v, l })) }),
   ctrls: [{ k: "t", label: "θ", min: 0, max: 180, step: 1, unit: "°" }, { k: "t", label: "", opts: [[30, "30°"], [45, "45°"], [60, "60°"], [90, "90°"], [120, "120°"], [135, "135°"], [150, "150°"]] }],
   hint: "👆 円の上の点 P をドラッグ。y 座標 が sin、x 座標 が cos",
   draw(G, st, ctx) {
     const t = st.t * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
     G.circle(0, 0, 1, { c: "muted", w: 1.5, dash: "4 5" });
     G.fn(x => Math.sqrt(Math.max(0, 1 - x * x)), { c: "muted", w: 2, from: -1, to: 1 });
-    if (Math.abs(c) > 0.05 && Math.abs(s / c) < 1.3) { G.vline(1, { c: "violet", w: 1, dash: "3 5", op: 0.6 }); G.line(0, 0, 1, s / c, { c: "violet", w: 1.5, dash: "5 4", op: em(ctx, "tan", 1, 0.55) }); G.point(1, s / c, { c: "violet", r: 4, label: "tan θ", pos: "e", size: 13, op: em(ctx, "tan", 1, 0.7) }); }
+    if ((ctx.touch || H(ctx, "tan")) && Math.abs(c) > 0.05 && Math.abs(s / c) < 2.05) { G.vline(1, { c: "violet", w: 1, dash: "3 5", op: 0.6 }); G.line(0, 0, 1, s / c, { c: "violet", w: 1.5, dash: "5 4", op: em(ctx, "tan", 1, 0.55) }); G.point(1, s / c, { c: "violet", r: 4, label: "tan θ", pos: "e", size: 13, op: em(ctx, "tan", 1, 0.7) }); }
     G.angle(0, 0, 0, st.t, { rp: 30 });
     G.label(0.22 * Math.cos(t / 2), 0.22 * Math.sin(t / 2), "θ", { pos: "e", d: 4, c: "gold", size: 15 });
+    // 三角定規（先にぬって、sin・cos の色をかくさない）
+    if (H(ctx, "tri")) {
+      G.poly([[0, 0], [c, 0], [c, s]], { fill: "gold-soft", c: "none", pop: true });
+      if (st.t > 90 && st.t < 180) { G.angle(0, 0, st.t, 180, { rp: 46, fill: "warm-soft", c: "warm" }); G.label(-0.42 * Math.cos(((180 - st.t) / 2) * Math.PI / 180), 0.42 * Math.sin(((180 - st.t) / 2) * Math.PI / 180), (180 - st.t) + "°", { pos: "w", d: 2, c: "warm", size: 14 }); }
+      G.label(c / 2, s / 2, "1", { pos: c >= 0 ? "nw" : "ne", c: "ink", size: 14 });
+    }
+    if (st.t2 != null) { // 同じ y 座標の もう 1 つの点
+      const t2 = st.t2 * Math.PI / 180, c2 = Math.cos(t2);
+      G.line(-1.2, s, 1.2, s, { c: "warm", w: 1.5, dash: "5 5" });
+      G.line(0, 0, c2, s, { c: "ink", w: 2, dash: "4 4" });
+      G.point(c2, s, { c: "warm", r: 7, label: `P′（${st.t2}°）`, pos: c2 >= 0 ? "ne" : "nw", top: true });
+    }
     G.line(0, 0, c, s, { c: "ink", w: 2.5 });
     G.line(c, 0, c, s, { c: "warm", w: em(ctx, "sin", 7, 5), pop: H(ctx, "sin") });
     G.line(0, 0, c, 0, { c: "blue", w: em(ctx, "cos", 7, 5), pop: H(ctx, "cos") });
-    if (H(ctx, "tri")) G.poly([[0, 0], [c, 0], [c, s]], { fill: "gold-soft", c: "gold", pop: true });
     G.label(c, s / 2, "sin", { pos: c >= 0 ? "e" : "w", c: "warm", size: 14 });
-    G.label(c / 2, 0, "cos", { pos: "s", c: "blue", size: 14 });
+    G.label(c / 2, 0, "cos", { pos: "n", d: 6, c: "blue", size: 14 });
     const lab = `P(${N(c, 2)}, ${N(s, 2)})`;
     if (ctx.touch) G.handle("P", c, s, (x, y) => { let a = Math.atan2(Math.max(y, 0), x) * 180 / Math.PI; if (a < 0) a = x > 0 ? 0 : 180; st.t = clamp(Math.round(a), 0, 180); for (const k of [0, 30, 45, 60, 90, 120, 135, 150, 180]) if (Math.abs(st.t - k) <= 2) st.t = k; ctx.redraw(); }, { label: lab, pos: c >= 0 ? "ne" : "nw" });
-    else G.point(c, s, { c: "warm", r: 7, label: "P", pos: c >= 0 ? "ne" : "nw", pop: H(ctx, "P") });
+    else G.point(c, s, { c: "warm", r: 7, label: st.t2 != null ? `P（${st.t}°）` : "P", pos: c >= 0 ? "ne" : "nw", pop: H(ctx, "P") });
   },
   band(st) {
     const v = TRIG[st.t], t = st.t * Math.PI / 180;
@@ -364,9 +408,9 @@ UNITS.push({
     q: "sin 120°、cos 120° の値は？", st: { t: 120 },
     steps: [
       { t: "半径 1 の円の上に 120° の点 P をとる", hl: "P", n: "θ = 120°" },
-      { t: "x 軸と 60° の 三角定規（1 : 2 : √3）ができる", hl: "P tri", n: "辺の比  1 : 2 : √3" },
+      { t: "x 軸の左側と 60° の 三角定規（ななめの辺 1）ができる", hl: "P tri", n: "辺の比  1 : 2 : √3" },
       { t: "P の <b>y 座標</b>（赤）が sin", hl: "sin tri", n: `sin 120° = ${fr("√3", "2")}` },
-      { t: "P の <b>x 座標</b>（青）が cos。左側なのでマイナス", hl: "cos tri", n: `sin 120° = ${fr("√3", "2")}、cos 120° = −${fr("1", "2")}` },
+      { t: `P の <span class="bl">x 座標</span>（青）が cos。左側なのでマイナス`, hl: "cos tri", n: `sin 120° = ${fr("√3", "2")}、cos 120° = −${fr("1", "2")}` },
     ],
   },
   gen() {
@@ -375,7 +419,7 @@ UNITS.push({
       const all = ["30°, 150°", "45°, 135°", "60°, 120°", "30°", "60°", "150°"];
       const c = choose(v[1], shuffle(all.filter(a => a !== v[1])));
       const t0 = parseInt(v[1]);
-      return { q: `sin θ = ${tv(v[0])}（0° ≦ θ ≦ 180°）のとき θ は？`, ...c, hint: "y 座標が同じになる点は、円の上に 2 つある（左右対称）", exp: `y 座標が ${tv(v[0])} の点は 2 つ<br><b>θ = ${v[1]}</b>`, st: { t: t0 }, hl: "sin tri" };
+      return { q: `sin θ = ${tv(v[0])}（0° ≦ θ ≦ 180°）のとき θ は？`, ...c, hint: "y 座標が同じになる点は、円の上に 2 つある（左右対称）", exp: `y 座標が ${tv(v[0])} の点は 左右に 2 つ<br><b>θ = ${v[1]}</b>`, st: { t: t0, t2: 180 - t0 }, hl: "sin" };
     }
     const fi = rint(0, 2), name = ["sin", "cos", "tan"][fi];
     let ang = pick([0, 30, 45, 60, 90, 120, 135, 150, 180]);
@@ -403,42 +447,67 @@ function circum(A, B, C) {
   return [ux, uy, dist([ux, uy], A)];
 }
 const nv = v => Math.abs(v - Math.round(v)) < 0.02 ? String(Math.round(v)) : N(v, 1);
+/* 問題のとき：√19 のように きれいに書けるなら √ で */
+function nvx(v, exact) {
+  if (!exact) return nv(v);
+  const v2 = v * v, n = Math.round(v2);
+  if (Math.abs(v - Math.round(v)) < 0.01) return String(Math.round(v));
+  if (Math.abs(v2 - n) < 0.01 && n < 400) { for (let k = 20; k >= 2; k--) if (n % (k * k) === 0) return `${k}√${n / (k * k)}`; return `√${n}`; }
+  return N(v, 1);
+}
+/* 三角形（と外接円）が ちょうど入る表示 */
+function triView(st) {
+  const ps = [st.A, st.B, st.C]; let xs = ps.map(p => p[0]), ys = ps.map(p => p[1]);
+  if (st.mode === "sin") { const [ux, uy, R] = circum(st.A, st.B, st.C); xs = xs.concat([ux - R, ux + R]); ys = ys.concat([uy - R, uy + R]); }
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), m = Math.max(x1 - x0, y1 - y0) * 0.12 + 0.8;
+  return { xmin: x0 - m, xmax: x1 + m, ymin: y0 - m, ymax: y1 + m, noAxes: true };
+}
 function triFrom(b, c, Adeg, k) { // A を原点、AB を x 軸に
   const t = Adeg * Math.PI / 180, s = 8 / Math.max(b, c, 1);
-  return { A: [0, 0], B: [c * s, 0], C: [b * s * Math.cos(t), b * s * Math.sin(t)], k: 1 / s };
+  return { A: [0, 0], B: [c * s, 0], C: [b * s * Math.cos(t), b * s * Math.sin(t)], k: 1 / s, exact: true };
 }
 UNITS.push({
   id: "tri", sub: "I", name: "正弦定理・余弦定理", small: "三角形の辺と角",
   init: () => ({ mode: "cos", A: [0, 0], B: [8, 0], C: [2.5, 4.33], k: 1 }),
-  view: st => st.mode === "sin" ? { xmin: -3, xmax: 11, ymin: -6, ymax: 9 } : { xmin: -2, xmax: 10, ymin: -1.5, ymax: 8 },
+  view: (st, ctx) => ctx && ctx.touch ? (st.mode === "sin" ? { xmin: -3, xmax: 11, ymin: -6, ymax: 9, noAxes: true } : { xmin: -2, xmax: 10, ymin: -1.5, ymax: 8, noAxes: true }) : triView(st),
   ctrls: [{ k: "mode", label: "", opts: [["cos", "余弦定理"], ["sin", "正弦定理"]] }, { btn: "形をもどす", act: st => Object.assign(st, { A: [0, 0], B: [8, 0], C: [2.5, 4.33] }) }],
   hint: "👆 頂点 A・B・C をドラッグして 形をかえられる",
   draw(G, st, ctx) {
     const { A, B, C, k } = st, a = dist(B, C) * k, b = dist(C, A) * k, c = dist(A, B) * k;
-    const aA = angAt(A, B, C);
+    const aA = angAt(A, B, C), ex = !ctx.touch, nm = st.names || ["A", "B", "C"];
+    const g = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3];
     if (st.mode === "sin") {
       const [ux, uy, R] = circum(A, B, C);
-      if (R < 40) { G.circle(ux, uy, R, { c: "violet", w: 2, dash: "6 5" }); G.point(ux, uy, { c: "violet", r: 4 }); G.line(ux, uy, B[0], B[1], { c: "violet", w: 2 }); G.label((ux + B[0]) / 2, (uy + B[1]) / 2, "R = " + nv(R * k), { pos: "e", c: "violet", size: 15 }); }
+      if (R < 40) { G.circle(ux, uy, R, { c: "violet", w: 2, dash: "6 5" }); G.point(ux, uy, { c: "violet", r: 4 }); G.line(ux, uy, B[0], B[1], { c: "violet", w: 2 }); G.label((ux + B[0]) / 2, (uy + B[1]) / 2, "R = " + nvx(R * k, ex), { pos: "e", c: "violet", size: 15 }); }
     }
     G.poly([A, B, C], { fill: "accent-soft", c: "ink", w: 2 });
-    const side = (p, q, txt, key, color) => { const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; G.line(p[0], p[1], q[0], q[1], { c: H(ctx, key) ? color : "ink", w: H(ctx, key) ? 6 : 2, pop: H(ctx, key) }); G.label(m[0], m[1], txt, { pos: "e", c: color, size: em(ctx, key, 19, 15) }); };
-    side(B, C, "a = " + nv(a), "a", "warm");
-    side(C, A, "b = " + nv(b), "b", "blue");
-    side(A, B, "c = " + nv(c), "c", "blue");
+    // 辺の名前は 三角形の外側（重心と反対向き）に
+    const side = (p, q, txt, key, color) => {
+      const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      G.line(p[0], p[1], q[0], q[1], { c: H(ctx, key) ? color : "ink", w: H(ctx, key) ? 6 : 2, pop: H(ctx, key) });
+      let nx = -(q[1] - p[1]), ny = q[0] - p[0]; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+      if (nx * (m[0] - g[0]) + ny * (m[1] - g[1]) < 0) { nx = -nx; ny = -ny; }
+      const off = 22 / G.sx, px = m[0] + nx * off, py = m[1] + ny * off;
+      G.label(px, py, txt, { pos: "c", c: color, size: em(ctx, key, 19, 15), top: true });
+    };
+    side(B, C, nm[0].toLowerCase() === "a" ? "a = " + nvx(a, ex) : nm[1] + nm[2] + " = " + nvx(a, ex), "a", "warm");
+    side(C, A, nm[1].toLowerCase() === "b" ? "b = " + nvx(b, ex) : nm[2] + nm[0] + " = " + nvx(b, ex), "b", "blue");
+    side(A, B, nm[2].toLowerCase() === "c" ? "c = " + nvx(c, ex) : nm[0] + nm[1] + " = " + nvx(c, ex), "c", "blue");
     const a1 = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI, a2 = Math.atan2(C[1] - A[1], C[0] - A[0]) * 180 / Math.PI;
     let s1 = a1, s2 = a2; if (((s2 - s1) % 360 + 360) % 360 > 180) [s1, s2] = [s2, s1]; if (s2 < s1) s2 += 360;
     G.angle(A[0], A[1], s1, s2, { rp: 26, fill: H(ctx, "A") ? "warm-soft" : "gold-soft", c: H(ctx, "A") ? "warm" : "gold" });
     G.label(A[0], A[1], nv(aA) + "°", { pos: "ne", d: 28, c: "gold", size: 14 });
     const mv = key => (x, y) => { st[key] = [snap(x, 0.1), snap(y, 0.1)]; ctx.redraw(); };
-    [["A", A, "sw"], ["B", B, "se"], ["C", C, "n"]].forEach(([n, p, pos]) => {
+    [[nm[0], A, "sw"], [nm[1], B, "se"], [nm[2], C, "n"]].forEach(([n, p, pos]) => {
       if (ctx.touch) G.handle(n, p[0], p[1], mv(n), { label: n, pos, c: "ink", lc: "ink" });
       else G.point(p[0], p[1], { r: 4, label: n, pos, size: 17 });
     });
   },
   band(st) {
     const { A, B, C, k } = st, a = dist(B, C) * k, b = dist(C, A) * k, c = dist(A, B) * k, aA = angAt(A, B, C);
-    if (st.mode === "sin") { const R = circum(A, B, C)[2] * k; return { g: "a / sin A = b / sin B = c / sin C = 2R（R：外接円の半径）", n: `${nv(a)} ÷ sin ${nv(aA)}° = <span class="hl">${N(a / Math.sin(aA * Math.PI / 180), 2)}</span> = 2R　<span class="mt">→</span> R = ${nv(R)}` }; }
-    return { g: "a² = b² + c² − 2bc cos A", n: `a² = ${nv(b)}² + ${nv(c)}² − 2·${nv(b)}·${nv(c)}·cos ${nv(aA)}° = <span class="hl">${N(a * a, 1)}</span>　<span class="mt">→</span> a = ${nv(a)}` };
+    const ex = !!st.exact; // 問題のときは √ で
+    if (st.mode === "sin") { const R = circum(A, B, C)[2] * k; return { g: "a / sin A = b / sin B = c / sin C = 2R（R：外接円の半径）", n: `${nvx(a, ex)} ÷ sin ${nv(aA)}° = <span class="hl">${nvx(2 * R, ex)}</span> = 2R　<span class="mt">→</span> R = ${nvx(R, ex)}` }; }
+    return { g: "a² = b² + c² − 2bc cos A", n: `a² = ${nv(b)}² + ${nv(c)}² − 2·${nv(b)}·${nv(c)}·cos ${nv(aA)}° = <span class="hl">${N(a * a, 1)}</span>　<span class="mt">→</span> a = ${nvx(a, ex)}` };
   },
   points: ["<b>a は 角 A の向かいの辺</b>（b は B の、c は C の向かい）", "余弦定理：<b>2 辺とその間の角</b> → 残りの辺 a² = b² + c² − 2bc cos A", "正弦定理：<b>辺と向かいの角</b> のペア → 外接円の半径 R（a / sin A = 2R）"],
   ex: {
@@ -454,7 +523,7 @@ UNITS.push({
     const r = Math.random();
     if (r < 0.45) {
       const [b, c, A, a] = pick([[5, 8, 60, 7], [3, 8, 60, 7], [8, 15, 60, 13], [3, 5, 120, 7], [7, 8, 120, 13], [5, 3, 120, 7], [8, 5, 60, 7], [1, 1, 120, "√3"]]);
-      const cosv = A === 60 ? fr(1, 2) : MI + fr(1, 2);
+      const cosv = A === 60 ? fr(1, 2) : `(${MI}${fr(1, 2)})`;
       const ans = String(a), nums = typeof a === "number" ? [a + 1, a - 1, a * a, b + c].map(String) : ["3", "1", "√2"];
       const c2 = choose(ans, nums);
       return { q: `△ABC で b = ${b}、c = ${c}、A = ${A}° のとき、a は？`, ...c2, hint: "2 辺とその間の角 → 余弦定理 a² = b² + c² − 2bc cos A", exp: `a² = ${b}² + ${c}² − 2·${b}·${c}·${cosv} = ${b * b + c * c - (A === 60 ? 1 : -1) * b * c}<br>a = <b>${ans}</b>`, st: { mode: "cos", ...triFrom(b, c, A) }, hl: "a" };
@@ -483,18 +552,25 @@ function stats(v) {
 UNITS.push({
   id: "data", sub: "I", name: "データの分析", small: "平均・分散・箱ひげ図",
   init: () => ({ v: [2, 4, 6, 8, 10] }),
-  view: () => ({ xmin: -0.5, xmax: 12.5, ymin: -3.6, ymax: 4, equal: false, noY: true, xticks: Array.from({ length: 13 }, (_, i) => ({ v: i, l: String(i) })), xname: "" }),
+  view: () => ({ xmin: -0.5, xmax: 12.5, ymin: -3.6, ymax: 4.2, equal: false, noY: true, xticks: Array.from({ length: 13 }, (_, i) => ({ v: i, l: String(i) })), xname: "" }),
   ctrls: [{ btn: "🎲 ちがうデータ", act: st => { st.v = Array.from({ length: 5 }, () => rint(0, 12)); } }, { btn: "もどす", act: st => { st.v = [2, 4, 6, 8, 10]; } }],
   hint: "👆 ● を左右にドラッグ。平均（赤い線）と ちらばり が動く",
   draw(G, st, ctx) {
     const S = stats(st.v), m = S.m;
-    const seen = {};
-    const ys = st.v.map(x => { seen[x] = (seen[x] || 0) + 1; return 0.55 + (seen[x] - 1) * 0.65; });
-    if (!ctx.hl || H(ctx, "dev")) st.v.forEach((x, i) => { if (Math.abs(x - m) > 0.01) G.line(m, ys[i], x, ys[i], { c: "blue", w: em(ctx, "dev", 4, 2), op: em(ctx, "dev", 1, 0.55), pop: H(ctx, "dev") }); if (H(ctx, "dev")) G.label((x + m) / 2, ys[i], N(x - m), { pos: "n", d: 5, c: "blue", size: 13 }); });
-    if (!ctx.hl || H(ctx, "mean")) { G.line(m, -0.3, m, 3.7, { c: "warm", w: 3, pop: H(ctx, "mean") }); G.label(m, 3.7, "平均 " + N(m, 2), { pos: "e", c: "warm", size: 15 }); }
+    // 1 人 1 段（小さい順）。偏差の線が重ならない
+    const order = st.v.map((x, i) => i).sort((i, j) => st.v[i] - st.v[j] || i - j), ys = [];
+    order.forEach((i, r) => { ys[i] = 0.5 + r * 0.6; });
+    if (!ctx.hl || H(ctx, "dev")) st.v.forEach((x, i) => { if (Math.abs(x - m) > 0.01) G.line(m, ys[i], x, ys[i], { c: "blue", w: em(ctx, "dev", 4, 2), op: em(ctx, "dev", 1, 0.55), pop: H(ctx, "dev") }); if (H(ctx, "dev")) G.label(x, ys[i], N(x - m), { pos: x >= m ? "e" : "w", d: 14, c: "blue", size: 13 }); });
+    if (!ctx.hl || H(ctx, "mean")) { G.line(m, 0, m, 3.6, { c: "warm", w: 3, pop: H(ctx, "mean") }); G.label(m, 3.6, "平均 " + N(m, 2), { pos: "e", c: "warm", size: 15 }); }
+    if (st.v2) { // くらべる もう 1 つの組（下の段）
+      const seen = {};
+      G.textPx(G.X(-0.4), G.Y(-1), st.n2 || "A 組", { size: 14, c: "muted" });
+      G.textPx(G.X(-0.4), G.Y(2.9), st.n1 || "B 組", { size: 14, c: "muted" });
+      st.v2.forEach(x => { seen[x] = (seen[x] || 0) + 1; G.point(x, -0.9 - (seen[x] - 1) * 0.45, { r: 7, c: "violet" }); });
+    }
     // 箱ひげ図
     const by = -2.2, bh = 0.5;
-    if (!ctx.hl || H(ctx, "box")) {
+    if ((!ctx.hl || H(ctx, "box")) && !st.v2) {
       G.line(S.min, by, S.q1, by, { w: 2 }); G.line(S.q3, by, S.max, by, { w: 2 });
       G.line(S.min, by - 0.3, S.min, by + 0.3, { w: 2 }); G.line(S.max, by - 0.3, S.max, by + 0.3, { w: 2 });
       G.rect(S.q1, by - bh, S.q3 - S.q1, 2 * bh, { fill: "accent-soft", c: "ink", w: 2, pop: H(ctx, "box") });
@@ -528,6 +604,6 @@ UNITS.push({
     if (t === 0) { const c = chooseNum(m, [m + 1, m - 1, S.med === m ? m + 2 : S.med]); return { q: `データ ${list} の 平均値 は？`, ...c, hint: "全部たして、個数 5 でわる", exp: `(${v.join(" + ")}) ÷ 5 = ${v.reduce((a, b) => a + b, 0)} ÷ 5 = <b>${m}</b>`, st: { v }, hl: "mean" }; }
     if (t === 1) { const c = chooseNum(S.med, [m === S.med ? S.med + 1 : m, v[2], S.med - 1]); return { q: `データ ${list} の 中央値 は？`, ...c, hint: "小さい順にならべて、まん中（3 番目）", exp: `小さい順に ${S.s.join(", ")}<br>まん中は <b>${S.med}</b>`, st: { v }, hl: "box" }; }
     const c = chooseNum(vr, [vr * 5, Math.round(Math.sqrt(vr) * 10) / 10, vr + 2]);
-    return { q: `データ ${list} の 分散 は？`, ...c, hint: `平均は ${m}。偏差（値 − 平均）を 2 乗して 平均する`, exp: `平均 ${m}、偏差 ${v.map(x => N(x - m)).join(", ")}<br>2 乗の合計 ${vr * 5} ÷ 5 = <b>${vr}</b>`, st: { v }, hl: "mean dev" };
+    return { q: `データ ${list} の 分散 は？`, ...c, hint: `平均は ${m}。偏差（値 − 平均）を 2 乗して 平均する`, exp: `平均 ${m}、偏差 ${v.map(x => N(x - m)).join(", ")}<br>2 乗すると ${v.map(x => (x - m) ** 2).join(" + ")} = ${vr * 5}<br>${vr * 5} ÷ 5 = <b>${vr}</b>`, st: { v }, hl: "mean dev" };
   },
 });

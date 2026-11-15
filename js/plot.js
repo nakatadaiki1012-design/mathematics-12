@@ -64,7 +64,7 @@ class Plot {
   }
   _grid() {
     const v = this.v, G = this.gGrid;
-    const mx = Plot.nice(this.sx, 34), my = Plot.nice(this.sy, 30);
+    const mx = v.tickX || Plot.nice(this.sx, 48), my = v.tickY || Plot.nice(this.sy, 30);
     const fx = this.sx >= 10 ? Math.min(1, mx) : mx, fy = this.sy >= 10 ? Math.min(1, my) : my;
     const gx = v.gridX || fx, gy = v.gridY || fy;
     for (let x = Math.ceil(this.x0 / gx) * gx; x <= this.x1; x += gx)
@@ -76,24 +76,24 @@ class Plot {
     // x 軸
     svgEl("line", { class: "ax", x1: 0, x2: this.w - 2, y1: oy, y2: oy }, G);
     svgEl("path", { d: `M${this.w - 2},${oy} l-9,-4.5 v9 z`, fill: "var(--ink)" }, G);
-    this._t(G, this.w - 12, oy - 10, v.xname || "x", { anchor: "end", it: true });
+    this._t(G, this.w - 12, oy - 10, v.xname ?? "x", { anchor: "end", it: true });
     const lblY = Math.min(oy + 16, this.h - 6);
     const xt = v.xticks || [];
-    if (v.xticks) xt.forEach(t => { svgEl("line", { class: "ax", x1: this.X(t.v), x2: this.X(t.v), y1: oy - 3, y2: oy + 3 }, G); this._t(G, this.X(t.v), lblY, t.l, { anchor: "middle", cls: "tk" }); });
+    if (v.xticks) xt.forEach(t => { svgEl("line", { class: "ax", x1: this.X(t.v), x2: this.X(t.v), y1: oy - 3, y2: oy + 3 }, G); this._t(this.gTop, this.X(t.v), lblY, t.l, { anchor: "middle", cls: "tk" }); });
     else for (let x = Math.ceil(this.x0 / mx) * mx; x <= this.x1 - 10 / this.sx; x += mx) {
       if (Math.abs(x) < 1e-9) continue;
       svgEl("line", { class: "ax", x1: this.X(x), x2: this.X(x), y1: oy - 3, y2: oy + 3 }, G);
-      this._t(G, this.X(x), lblY, fmtTick(x), { anchor: "middle", cls: "tk" });
+      this._t(this.gTop, this.X(x), lblY, fmtTick(x), { anchor: "middle", cls: "tk" });
     }
     if (v.noY) return;
     svgEl("line", { class: "ax", x1: ox, x2: ox, y1: this.h, y2: 2 }, G);
     svgEl("path", { d: `M${ox},2 l-4.5,9 h9 z`, fill: "var(--ink)" }, G);
-    this._t(G, ox + 10, 16, v.yname || "y", { anchor: "start", it: true });
+    this._t(G, ox + 10, 16, v.yname ?? "y", { anchor: "start", it: true });
     const lblX = Math.max(ox - 6, 26);
     for (let y = Math.ceil(this.y0 / my) * my; y <= this.y1 - 14 / this.sy; y += my) {
       if (Math.abs(y) < 1e-9) continue;
       svgEl("line", { class: "ax", x1: ox - 3, x2: ox + 3, y1: this.Y(y), y2: this.Y(y) }, G);
-      this._t(G, lblX, this.Y(y) + 4, fmtTick(y), { anchor: "end", cls: "tk" });
+      this._t(this.gTop, lblX, this.Y(y) + 4, fmtTick(y), { anchor: "end", cls: "tk" });
     }
     if (this.X(0) > 0 && this.X(0) < this.w && this.Y(0) > 0 && this.Y(0) < this.h) this._t(G, ox - 6, oy + 15, "O", { anchor: "end", cls: "tk", it: true });
   }

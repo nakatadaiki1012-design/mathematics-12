@@ -129,7 +129,7 @@ sub, sup { font-size: .68em; line-height: 0; }
 .plot .gl { stroke: var(--ink); stroke-opacity: .07; stroke-width: 1; }
 .plot .gl.mj { stroke-opacity: .14; }
 .plot .ax { stroke: var(--ink); stroke-width: 1.5; }
-.plot .tk { fill: var(--muted); font: 500 12px var(--font-data); }
+.plot .tk { fill: var(--muted); font: 500 12px var(--font-data); opacity: .9; }
 .plot text { font-family: var(--font-body); paint-order: stroke; stroke: var(--stage-1); stroke-width: 4px; stroke-linejoin: round; }
 .plot .hd-hit { fill: transparent; cursor: grab; }
 .plot .hd-ring { pointer-events: none; }
@@ -192,6 +192,7 @@ sub, sup { font-size: .68em; line-height: 0; }
 .steps li.now { color: var(--ink); font-weight: 700; font-size: 16px; }
 .steps li.now .sn { border-color: var(--warm); background: var(--warm); color: var(--panel); }
 .steps li b { color: var(--warm); }
+.steps .bl, .note .bl { color: var(--blue); font-weight: 700; }
 .navrow { display: flex; gap: 8px; align-items: center; }
 .btn { border: 1.5px solid var(--ink); background: var(--panel); border-radius: 5px; padding: 8px 16px; font-weight: 700; font-size: 15px; }
 .btn:hover { background: var(--chip); }
@@ -232,7 +233,7 @@ sub, sup { font-size: .68em; line-height: 0; }
 .bar { height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
 .bar i { display: block; height: 100%; background: var(--warm); transition: width .3s; }
 
-.toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 8px 18px; border-radius: 99px; font-weight: 700; z-index: 99; pointer-events: none; animation: toast 1.6s ease both; }
+.toast { position: fixed; left: calc(100% - 196px); bottom: 84px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 8px 18px; border-radius: 99px; font-weight: 700; z-index: 99; pointer-events: none; animation: toast 1.6s ease both; }
 @keyframes toast { 0% { opacity: 0; transform: translate(-50%, -8px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
 
 body.fz1 .fband, body.fz1 .card-body, body.fz1 .lib { zoom: 1.15; }
@@ -241,6 +242,7 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
 /* タブレット・スマホ：上から 一覧 → ステージ → 説明 */
 @media (max-width: 1100px) { .app { grid-template-columns: 200px minmax(0, 1fr) 320px; } }
 @media (max-width: 900px) {
+  .toast { left: 50%; }
   body { overflow: auto; height: auto; min-height: 100%; }
   .top { flex-wrap: wrap; gap: 6px 12px; position: sticky; top: 0; z-index: 20; }
   .brand { font-size: 18px; }

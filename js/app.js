@@ -55,17 +55,15 @@ function openUnit(id, sub) {
   const u = byId[id] || UNITS[0];
   S.sub = u.sub; S.uid = u.id; S.drill = null;
   S.st = u.init(); plot.touched = false;
-  if (sub === "touch") { S.tab = "touch"; }
-  else {
-    S.tab = "lesson";
-    let i = STAGES.findIndex(([k]) => k === sub);
-    if (i < 0) { i = STAGES.findIndex(([k]) => !stageDone(u.id, k)); if (i < 0) i = 0; } // 続きから
-    S.stg = i;
-  }
+  let i = STAGES.findIndex(([k]) => k === sub);
+  if (i < 0) { i = STAGES.findIndex(([k]) => !stageDone(u.id, k)); if (i < 0) i = 0; } // 続きから
+  S.stg = i;
+  S.tab = sub === "touch" ? "touch" : "lesson";
   enterStage();
   renderNav(); renderLib(); renderCard(); draw();
 }
-function setTab(t) { S.tab = t; if (t === "lesson") enterStage(); renderCard(); draw(); }
+/* タブを切りかえても、解いている問題は そのまま */
+function setTab(t) { S.tab = t; if (t === "lesson" && !S.prob && stgKey() !== "ex") enterStage(); renderCard(); draw(); }
 function goStage(i) {
   S.stg = clamp(i, 0, STAGES.length - 1); S.tab = "lesson";
   enterStage(); renderCard(); draw();
@@ -78,7 +76,8 @@ function enterStage() {
   if (k === "ex") return;
   if (k === "rui" || k === "ens") { S.prob = u.gen(); return; }
   const L = LESSON[u.id][k], c = choose(L.ok, L.ng);
-  S.prob = Object.assign({}, L, { ch: c.ch, ans: c.ans, q: L.say ? `<span class="say">${L.say}</span>${L.q}` : L.q });
+  // q：右の説明用（場面つき）、qs：グラフの上の大きな文字（問いだけ）
+  S.prob = Object.assign({}, L, { ch: c.ch, ans: c.ans, q: L.say ? `<span class="say">${L.say}</span>${L.q}` : L.q, qs: L.q });
 }
 
 /* ---------- ステージ（グラフ） ---------- */
@@ -88,7 +87,7 @@ function exState() {
   return st;
 }
 function draw() {
-  let u = cur(), st, ctx = { touch: false, hl: "", redraw: () => { draw(); syncCtrls(); } };
+  let u = cur(), st, ctx = { touch: false, ex: false, hl: "", redraw: () => { draw(); syncCtrls(); } };
   let band = null, cover = null;
   if (S.sub === "drill") {
     const d = S.drill;
@@ -97,17 +96,19 @@ function draw() {
     st = q.p.st; ctx.hl = q.p.hl || ""; cover = S.done ? null : q.p.q;
   } else if (S.tab === "touch") { st = S.st; ctx.touch = true; }
   else if (stgKey() === "ex") {
-    st = exState(); const step = u.ex.steps[S.exI]; ctx.hl = step.hl || "";
+    st = exState(); const step = u.ex.steps[S.exI]; ctx.hl = step.hl || ""; ctx.ex = true;
     let n = null; for (let i = S.exI; i >= 0; i--) if (u.ex.steps[i].n) { n = u.ex.steps[i].n; break; }
     const full = Object.assign(u.init(), st);
     band = { g: u.band(full, ctx).g, n: n || u.band(full, ctx).n };
   } else {
-    st = S.prob.st; ctx.hl = S.prob.hl || ""; cover = S.done ? null : S.prob.q;
+    st = S.prob.st; ctx.hl = S.prob.hl || ""; cover = S.done ? null : (S.prob.qs || S.prob.q);
     if (S.prob.du) u = byId[S.prob.du];
+
   }
   const fullSt = ctx.touch ? st : Object.assign(u.init(), st);
-  plot.begin(fullSt.view || u.view(fullSt));
+  plot.begin(fullSt.view || u.view(fullSt, ctx));
   u.draw(plot, fullSt, ctx);
+  if (S.sub !== "drill" && S.tab === "lesson" && S.prob && S.prob.band) band = { g: u.band(fullSt, ctx).g, n: S.prob.band }; // 文章題の文字（t, h, V など）で式を出す
   band = band || u.band(fullSt, ctx);
   setBand(band.g, cover ? "" : band.n); // 答える前は 答えが見えないように
   setCover(cover);
@@ -221,7 +222,7 @@ function choicesHTML(p, attr) {
   }).join("")}</div>`;
 }
 function feedbackHTML(p) {
-  if (S.done) return `<div class="note ${S.gotIt ? "good" : "bad"}"><span class="ttl">${S.gotIt ? "⭕ せいかい！" : "答えはこれ"}</span>${p.exp}<span class="see">グラフで たしかめよう</span></div>`;
+  if (S.done) return `<div class="note ${S.gotIt ? "good" : "bad"}"><span class="ttl">${S.gotIt ? "⭕ せいかい！" : "答えはこれ"}</span>${p.exp}<span class="see">図で たしかめよう</span></div>`;
   if (S.tries) return `<div class="note hint"><span class="ttl">おしい！ もう一度えらんでみよう</span>💡 ${p.hint}</div>`;
   if (S.hintOn) return `<div class="note hint">💡 ${p.hint}</div>`;
   return "";
@@ -231,7 +232,7 @@ function qHTML(u) {
   let top = "";
   if (k === "intro") top = `<div class="use"><b>どこで使う？</b>　${LESSON[u.id].use}</div>`;
   else if (k === "ens") { const n = Math.min(prog(u.id).ok, PASS); top = `<div class="meter">${Array.from({ length: PASS }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}<span>${n >= PASS ? "合格！ 続けて練習もできる" : LEADS.ens}</span></div>`; }
-  else top = `<p class="lead">${LEADS[k]}</p>`;
+  else top = `<p class="lead">${p.lead || LEADS[k]}</p>`;
   return `${top}<div class="qbox"><span class="tag ${k === "B" || k === "C" ? "adv" : ""}">${TAGS[k]}</span>${p.q}</div>${choicesHTML(p, "data-ch")}${feedbackHTML(p)}`;
 }
 function qFoot() {
@@ -255,7 +256,7 @@ function answer(i, btn) {
     if (k === "ens") { pr.ok++; toast(pr.ok === PASS ? "🎉 合格！" : "⭕ せいかい！"); } else toast("⭕ せいかい！");
   } else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); }
   else { S.done = true; S.gotIt = false; S.wrong = i; }
-  if (S.done && k !== "ens") prog(u.id).done[k] = true;
+  if (S.done && S.gotIt && k !== "ens") prog(u.id).done[k] = true; // 答えを見ただけなら 完了にしない
   save(); renderCard(); renderLib(); draw();
 }
 
