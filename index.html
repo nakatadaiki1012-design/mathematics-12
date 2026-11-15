@@ -233,8 +233,38 @@ sub, sup { font-size: .68em; line-height: 0; }
 .bar { height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
 .bar i { display: block; height: 100%; background: var(--warm); transition: width .3s; }
 
-.toast { position: fixed; left: calc(100% - 196px); bottom: 84px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 8px 18px; border-radius: 99px; font-weight: 700; z-index: 99; pointer-events: none; animation: toast 1.6s ease both; }
-@keyframes toast { 0% { opacity: 0; transform: translate(-50%, -8px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+/* コイン・段位 */
+.tbtn.coin { border-color: var(--gold); display: inline-flex; gap: 4px; align-items: center; }
+.tbtn.coin .rk { font-size: 11px; color: var(--muted); margin-left: 4px; }
+.rankbox { border: 1.5px solid var(--ink); border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; background: var(--bg); }
+.rk-now { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1.2; }
+.rk-c { font-weight: 700; margin-bottom: 6px; }
+.rankbox .bar i { background: var(--gold); }
+.badges { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.bdg { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; opacity: .55; display: grid; grid-template-columns: 28px 1fr; column-gap: 6px; align-items: center; }
+.bdg .bi { grid-row: span 2; font-size: 20px; text-align: center; }
+.bdg b { font-size: 13px; } .bdg small { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.bdg.on { opacity: 1; border-color: var(--gold); background: var(--gold-soft); }
+/* お題 */
+.mis { border: 1.5px solid var(--gold); border-radius: 6px; padding: 8px 12px 10px; margin-bottom: 14px; background: var(--gold-soft); }
+.mis:empty { display: none; }
+.mis-h { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.mis-h .dots i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--gold); margin-left: 3px; }
+.mis-h .dots i.on { background: var(--gold); }
+.mis-t { font-size: 16px; font-weight: 700; margin: 4px 0 8px; line-height: 1.6; }
+.mis-t b { color: var(--warm); }
+.mis-t.ok { color: var(--accent); font-size: 18px; }
+.mis .hintbtn { margin: 0; background: var(--panel); }
+.mis-hint { font-size: 14px; background: var(--panel); border-radius: 4px; padding: 6px 10px; }
+/* グラフ当て */
+.gmtop { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 4px; }
+.gmtop b { font-family: var(--font-data); font-size: 20px; }
+.bar.gm { height: 10px; }
+.bar.gm i { background: var(--accent); transition: width .1s linear; }
+.bar.gm i.low { background: var(--warm); }
+.cbtn .kn { display: inline-block; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; margin-right: 8px; vertical-align: 3px; font-family: var(--font-data); }
+.toast { position: fixed; right: 24px; bottom: 84px; background: var(--ink); color: var(--panel); padding: 8px 18px; border-radius: 99px; font-weight: 700; z-index: 99; pointer-events: none; white-space: nowrap; animation: toast 1.9s ease both; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 
 body.fz1 .fband, body.fz1 .card-body, body.fz1 .lib { zoom: 1.15; }
 body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
@@ -242,7 +272,8 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
 /* タブレット・スマホ：上から 一覧 → ステージ → 説明 */
 @media (max-width: 1100px) { .app { grid-template-columns: 200px minmax(0, 1fr) 320px; } }
 @media (max-width: 900px) {
-  .toast { left: 50%; }
+  .toast { right: auto; left: 16px; max-width: calc(100% - 32px); white-space: normal; }
+  .tbtn.coin .rk { display: none; }
   body { overflow: auto; height: auto; min-height: 100%; }
   .top { flex-wrap: wrap; gap: 6px 12px; position: sticky; top: 0; z-index: 20; }
   .brand { font-size: 18px; }
@@ -258,6 +289,9 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
   .stage-wrap { height: 50vh; min-height: 300px; flex: none; }
   /* 答える前は グラフをたたんで スクロールを へらす */
   .stage-wrap.covered { height: auto; min-height: 0; }
+  .stage-wrap.game { height: 36vh; min-height: 230px; }
+  body.in-guess .card-head { display: none; }
+  body.in-guess .cbtn { min-height: 44px; padding: 6px 8px; }
   .stage-wrap.covered .stage-area { display: none; }
   .card { overflow: visible; }
   .card-body { overflow: visible; }
@@ -270,6 +304,7 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
   <h1 class="brand">数学I・II<b>ラボ</b></h1>
   <nav class="secnav" id="secnav" aria-label="分野"></nav>
   <div class="tools">
+    <button type="button" class="tbtn coin" id="coinBtn" title="コイン・段位"></button>
     <button type="button" class="tbtn" id="fzBtn" title="文字の大きさ">あA</button>
     <button type="button" class="tbtn" id="themeBtn" title="明るい／暗い画面">🌗</button>
   </div>
@@ -296,6 +331,9 @@ body.fz2 .fband, body.fz2 .card-body, body.fz2 .lib { zoom: 1.3; }
 <script src="js/units1.js"></script>
 <script src="js/units2.js"></script>
 <script src="js/lessons.js"></script>
+<script src="js/missions.js"></script>
+<script src="js/reward.js"></script>
+<script src="js/game.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -2,7 +2,8 @@
 /* ===== アプリ本体：一覧・ステージ・説明カード =====
    授業の流れ：導入 → 例題 → 類題 → 演習 → 応用B → 応用C（1 画面ずつ） */
 const byId = Object.fromEntries(UNITS.map(u => [u.id, u]));
-const SUBS = [["I", "数学Ⅰ"], ["II", "数学Ⅱ"], ["drill", "🎯 まとめ練習"]];
+const SUBS = [["I", "数学Ⅰ"], ["II", "数学Ⅱ"], ["play", "🎮 ゲーム"]];
+const PLAYS = ["play", "guess", "drill"]; // ゲームの画面たち
 const STAGES = [["intro", "導入"], ["ex", "例題"], ["rui", "類題"], ["ens", "演習"], ["B", "応用B"], ["C", "応用C"]];
 const plot = new Plot($("#stage"));
 const KEY = "m12lab-v1";
@@ -19,23 +20,28 @@ const cur = () => byId[S.uid];
 const stgKey = () => STAGES[S.stg][0];
 const clone = o => JSON.parse(JSON.stringify(o));
 
-function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1700); }
+/* お知らせ（いくつか出たら 上に つみかさねる） */
+function toast(msg) {
+  const n = document.querySelectorAll(".toast").length;
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; t.style.bottom = (84 + n * 48) + "px";
+  document.body.appendChild(t); setTimeout(() => t.remove(), 1900);
+}
 
 /* ---------- 上のメニュー ---------- */
 function renderNav() {
-  $("#secnav").innerHTML = SUBS.map(([k, l]) => `<button type="button" data-s="${k}" aria-current="${S.sub === k}">${l}</button>`).join("");
+  $("#secnav").innerHTML = SUBS.map(([k, l]) => `<button type="button" data-s="${k}" aria-current="${S.sub === k || (k === "play" && PLAYS.includes(S.sub))}">${l}</button>`).join("");
 }
 $("#secnav").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   const s = b.dataset.s;
-  if (s === "drill") { location.hash = "drill"; return; }
+  if (s === "play") { location.hash = "play"; return; }
   const first = UNITS.find(u => u.sub === s);
-  location.hash = (cur() && cur().sub === s && S.sub !== "drill") ? S.uid : first.id;
+  location.hash = (cur() && cur().sub === s && !PLAYS.includes(S.sub)) ? S.uid : first.id;
 });
 
 /* ---------- 左の一覧 ---------- */
 function renderLib() {
-  if (S.sub === "drill") { renderDrillSide(); return; }
+  if (PLAYS.includes(S.sub)) { renderPlaySide(); return; }
   const list = UNITS.filter(u => u.sub === S.sub);
   $("#lib").innerHTML = `<h2>${S.sub === "I" ? "数学Ⅰ" : "数学Ⅱ"}</h2>` + list.map((u, i) => {
     const n = doneCount(u.id);
@@ -47,6 +53,7 @@ function renderLib() {
 }
 $("#lib").addEventListener("click", e => {
   const b = e.target.closest("[data-u]"); if (b) { location.hash = b.dataset.u; return; }
+  const g = e.target.closest("[data-goto]"); if (g) { location.hash = g.dataset.goto; return; }
   const d = e.target.closest("[data-scope]"); if (d) { startDrill(d.dataset.scope); }
 });
 
@@ -59,6 +66,7 @@ function openUnit(id, sub) {
   if (i < 0) { i = STAGES.findIndex(([k]) => !stageDone(u.id, k)); if (i < 0) i = 0; } // 続きから
   S.stg = i;
   S.tab = sub === "touch" ? "touch" : "lesson";
+  newMissions();
   enterStage();
   renderNav(); renderLib(); renderCard(); draw();
 }
@@ -87,8 +95,11 @@ function exState() {
   return st;
 }
 function draw() {
-  let u = cur(), st, ctx = { touch: false, ex: false, hl: "", redraw: () => { draw(); syncCtrls(); } };
+  let u = cur(), st, ctx = { touch: false, ex: false, hl: "", redraw: () => { draw(); syncCtrls(); checkMission(); } };
   let band = null, cover = null;
+  $("#stageWrap").classList.toggle("game", S.sub === "guess" || S.sub === "play"); // スマホでは グラフを少し低く
+  document.body.classList.toggle("in-guess", S.sub === "guess");
+  if (S.sub === "guess" || S.sub === "play") { drawGuess(); return; }
   if (S.sub === "drill") {
     const d = S.drill;
     if (!d || d.i >= d.qs.length) { plot.begin({ xmin: -5, xmax: 5, ymin: -4, ymax: 4 }); setBand("", ""); setCover(null); $("#hint").textContent = ""; return; }
@@ -108,6 +119,8 @@ function draw() {
   const fullSt = ctx.touch ? st : Object.assign(u.init(), st);
   plot.begin(fullSt.view || u.view(fullSt, ctx));
   u.draw(plot, fullSt, ctx);
+  // お題の 目標の印
+  if (ctx.touch && S.mis && S.mis.cur && !S.mis.cleared) (S.mis.cur.marks || []).forEach(([x, y]) => { plot.point(x, y, { hollow: true, c: "gold", r: 12, top: true }); plot.label(x, y, "ここ", { pos: "sw", c: "gold", size: 13, top: true }); });
   if (S.sub !== "drill" && S.tab === "lesson" && S.prob && S.prob.band) band = { g: u.band(fullSt, ctx).g, n: S.prob.band }; // 文章題の文字（t, h, V など）で式を出す
   band = band || u.band(fullSt, ctx);
   setBand(band.g, cover ? "" : band.n); // 答える前は 答えが見えないように
@@ -125,6 +138,8 @@ new ResizeObserver(() => draw()).observe($("#stage"));
 /* ---------- 説明カード ---------- */
 function renderCard() {
   if (S.sub === "drill") { renderDrillCard(); return; }
+  if (S.sub === "guess") { renderGuessCard(); return; }
+  if (S.sub === "play") { renderPlayCard(); return; }
   const u = cur(), list = UNITS.filter(x => x.sub === u.sub);
   const pills = S.tab === "lesson" ? `<div class="stages">${STAGES.map(([k, l], i) => `<button type="button" data-stg="${i}" class="${stageDone(u.id, k) ? "done" : ""}" aria-current="${i === S.stg}">${l}</button>`).join("")}</div>` : "";
   $("#cardHead").innerHTML = `<div class="headrow"><div><div class="cat">${u.sub === "I" ? "数学Ⅰ" : "数学Ⅱ"} · ${list.indexOf(u) + 1}</div><h2>${u.name}</h2></div>
@@ -151,7 +166,7 @@ function touchHTML(u) {
     return `<label class="sl"><span>${c.label}</span><input type="range" data-ci="${i}" min="${c.min}" max="${c.max}" step="${c.step}"><output data-o="${i}"></output></label>`;
   });
   const html = ctrls.join("").replace(/<\/div><div class="chips"><button type="button" class="chip" data-act/g, ' <button type="button" class="chip" data-act');
-  return `<div class="ctrl" id="ctrl">${html}</div><ul class="points">${u.points.map(p => `<li>${p}</li>`).join("")}</ul>`;
+  return `<div class="mis" id="misBox">${missionHTML()}</div><div class="ctrl" id="ctrl">${html}</div><ul class="points">${u.points.map(p => `<li>${p}</li>`).join("")}</ul>`;
 }
 function syncCtrls() {
   const u = cur(); if (S.tab !== "touch" || S.sub === "drill") return;
@@ -169,13 +184,45 @@ function ctrlSet(i, raw) {
   S.st[c.k] = v;
   if (c.set) c.set(S.st, v);
   if (u.fix) u.fix(S.st, c.k);
-  draw(); syncCtrls();
+  draw(); syncCtrls(); checkMission();
+}
+
+/* ---------- 「さわる」のお題 ---------- */
+function makeMission(i) {
+  const g = (MISSIONS[S.uid] || [])[i]; if (!g) return null;
+  let m; for (let k = 0; k < 12; k++) { m = g(); if (!m.ok(S.st)) break; } // はじめから できている お題は 出さない
+  return m;
+}
+function newMissions() { S.mis = { i: 0, cur: null, cleared: false, hint: false }; S.mis.cur = makeMission(0); }
+function missionHTML() {
+  const m = S.mis; if (!m || !m.cur) return "";
+  const n = (MISSIONS[S.uid] || []).length, dots = Array.from({ length: n }, (_, k) => `<i class="${k < m.i || (k === m.i && m.cleared) ? "on" : ""}"></i>`).join("");
+  if (m.cleared) {
+    const last = m.i === n - 1;
+    return `<div class="mis-h"><span>🎯 お題 ${m.i + 1} / ${n}</span><span class="dots">${dots}</span></div><div class="mis-t ok">⭕ クリア！ ${last ? "3 つ 全部 できた 🎉" : ""}</div>
+      <button type="button" class="btn pri" id="misNext">${last ? "もう一回（数字が かわる）▶" : "次のお題 ▶"}</button>`;
+  }
+  return `<div class="mis-h"><span>🎯 お題 ${m.i + 1} / ${n}</span><span class="dots">${dots}</span></div><div class="mis-t">${m.cur.t}</div>
+    ${m.hint ? `<div class="mis-hint">💡 ${m.cur.hint}</div>` : `<button type="button" class="hintbtn" id="misHint">💡 ヒント</button>`}`;
+}
+function updMission() { const b = $("#misBox"); if (b) b.innerHTML = missionHTML(); }
+function checkMission() {
+  const m = S.mis; if (S.tab !== "touch" || !m || !m.cur || m.cleared || !m.cur.ok(S.st)) return;
+  m.cleared = true; rw(); store.stat.missions++;
+  const last = m.i === (MISSIONS[S.uid] || []).length - 1;
+  let c = 15; if (last && !store.mclear[S.uid]) { store.mclear[S.uid] = true; c += 30; }
+  toast(`🎯 お題クリア！ 🪙 +${c}`); addCoins(c);
+  updMission(); draw();
 }
 $("#cardBody").addEventListener("input", e => { const t = e.target; if (t.matches("input[type=range][data-ci]")) ctrlSet(+t.dataset.ci, t.value); });
 function onClick(e) {
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.ci != null) { ctrlSet(+t.dataset.ci, t.dataset.v); return; }
-  if (t.dataset.act != null) { cur().ctrls[+t.dataset.act].act(S.st); draw(); syncCtrls(); return; }
+  if (t.dataset.act != null) { cur().ctrls[+t.dataset.act].act(S.st); draw(); syncCtrls(); checkMission(); return; }
+  if (t.id === "misHint") { S.mis.hint = true; updMission(); return; }
+  if (t.id === "misNext") { const n = MISSIONS[S.uid].length; if (S.mis.i + 1 >= n) newMissions(); else { S.mis.i++; S.mis.cleared = false; S.mis.hint = false; S.mis.cur = makeMission(S.mis.i); } updMission(); draw(); return; }
+  if (t.id === "gmStart") { startGuess(); return; }
+  if (t.dataset.gch != null) { guessAnswer(+t.dataset.gch); return; }
   if (t.dataset.tab) { setTab(t.dataset.tab); return; }
   if (t.dataset.ex) { exMove(+t.dataset.ex); return; }
   if (t.dataset.stg != null) { goStage(+t.dataset.stg); return; }
@@ -206,7 +253,7 @@ function exMove(d) {
   if (S.exI + d >= n) { goStage(S.stg + 1); return; }
   if (S.exI + d < 0) { goStage(S.stg - 1); return; }
   S.exI += d;
-  if (S.exI === n - 1 && !prog(u.id).done.ex) { prog(u.id).done.ex = true; save(); renderLib(); }
+  if (S.exI === n - 1 && !prog(u.id).done.ex) { prog(u.id).done.ex = true; save(); renderLib(); addCoins(5); toast("📖 例題 おわり 🪙 +5"); }
   renderCard(); draw();
 }
 
@@ -252,20 +299,19 @@ function answer(i, btn) {
   if (S.done) return;
   if (i === p.ans) {
     S.done = true; S.gotIt = true; S.wrong = -1;
-    const pr = prog(u.id);
-    if (k === "ens") { pr.ok++; toast(pr.ok === PASS ? "🎉 合格！" : "⭕ せいかい！"); } else toast("⭕ せいかい！");
-  } else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); }
+    const pr = prog(u.id), r = onAnswer(!S.tries, true);
+    const msg = `⭕ せいかい！ 🪙 +${r.coins}${r.streak >= 2 ? `　🔥 ${r.streak} 連続` : ""}`;
+    if (k === "ens") { pr.ok++; if (pr.ok === PASS) { toast("🎉 合格！ 🪙 +50"); addCoins(50); } else toast(msg); } else toast(msg);
+    if (k === "C" && !pr.done.C) { rw(); store.stat.cWin++; }
+  } else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); onAnswer(true, false); }
   else { S.done = true; S.gotIt = false; S.wrong = i; }
   if (S.done && S.gotIt && k !== "ens") prog(u.id).done[k] = true; // 答えを見ただけなら 完了にしない
-  save(); renderCard(); renderLib(); draw();
+  save(); checkBadges(); renderCard(); renderLib(); draw();
 }
 
 /* ---------- まとめ練習 ---------- */
 const SCOPES = [["I", "数学Ⅰ"], ["II", "数学Ⅱ"], ["all", "ぜんぶ"]];
 const DRILL_N = 10;
-function renderDrillSide() {
-  $("#lib").innerHTML = `<h2>まとめ練習</h2><div class="drill-side">${SCOPES.map(([k, l]) => `<button type="button" class="item" data-scope="${k}" aria-current="${S.drill && S.drill.scope === k}"><span class="nm"><b>${l}</b><small>${DRILL_N} 問　ベスト ${store.best[k] != null ? store.best[k] + " 点" : "—"}</small></span></button>`).join("")}</div>`;
-}
 function startDrill(scope) {
   const pool = UNITS.filter(u => scope === "all" || u.sub === scope);
   const order = [];
@@ -303,8 +349,8 @@ function renderDrillCard() {
 function drillAnswer(i, btn) {
   const d = S.drill, q = d.qs[d.i];
   if (S.done) return;
-  if (i === q.p.ans) { S.done = true; S.gotIt = true; S.wrong = -1; if (q.ok == null) { q.ok = !S.tries; if (!S.tries) d.score++; } toast("⭕ せいかい！"); }
-  else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); q.ok = false; }
+  if (i === q.p.ans) { S.done = true; S.gotIt = true; S.wrong = -1; if (q.ok == null) { q.ok = !S.tries; if (!S.tries) d.score++; } const r = onAnswer(!S.tries, true); toast(`⭕ せいかい！ 🪙 +${r.coins}${r.streak >= 2 ? `　🔥 ${r.streak} 連続` : ""}`); }
+  else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); q.ok = false; onAnswer(true, false); }
   else { S.done = true; S.gotIt = false; S.wrong = i; q.ok = false; }
   renderCard(); draw();
 }
@@ -312,7 +358,9 @@ function drillAnswer(i, btn) {
 /* ---------- ルーター（#quad、#quad/ex、#quad/touch、#drill） ---------- */
 function route() {
   const h = decodeURIComponent(location.hash.slice(1));
+  if (h !== "guess") stopGuess();
   if (h === "drill") { S.sub = "drill"; S.drill = null; renderNav(); renderLib(); renderCard(); draw(); return; }
+  if (h === "guess" || h === "play") { S.sub = h; if (h === "guess" && (!S.gm || S.gm.phase !== "run")) S.gm = { phase: "ready" }; renderNav(); renderLib(); renderCard(); draw(); return; }
   const [id, sub] = h.split("/");
   openUnit(byId[id] ? id : UNITS[0].id, sub);
 }
@@ -321,7 +369,8 @@ window.addEventListener("hashchange", route);
 /* ---------- キーボード・全画面・文字・テーマ ---------- */
 document.addEventListener("keydown", e => {
   if (e.target.matches("input, textarea")) return;
-  if (S.sub !== "drill" && S.tab === "lesson" && stgKey() === "ex") { if (e.key === "ArrowRight") exMove(1); if (e.key === "ArrowLeft") exMove(-1); }
+  if (S.sub === "guess" && /^[1-4]$/.test(e.key)) { guessAnswer(+e.key - 1); return; }
+  if (!PLAYS.includes(S.sub) && S.tab === "lesson" && stgKey() === "ex") { if (e.key === "ArrowRight") exMove(1); if (e.key === "ArrowLeft") exMove(-1); }
   if (e.key === "Escape") $("#stageWrap").classList.remove("is-max");
 });
 $("#maxBtn").addEventListener("click", () => { $("#stageWrap").classList.toggle("is-max"); });
@@ -337,4 +386,6 @@ $("#themeBtn").addEventListener("click", () => {
   draw();
 });
 
+$("#coinBtn").addEventListener("click", () => { location.hash = "play"; });
+renderCoin();
 route();

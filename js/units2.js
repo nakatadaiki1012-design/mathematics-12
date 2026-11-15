@@ -77,7 +77,7 @@ UNITS.push({
     const base = st.f === "sin" ? Math.sin : Math.cos, c = st.C * PI / 6;
     const f = x => st.A * base(st.B * (x - c));
     const rA = st.ref === "A" ? st.A : 1; // くらべる もとのグラフ（ふつうは y = sin x）
-    G.fn(x => rA * base(x), { c: "muted", w: em(ctx, "base", 3, 1.5), dash: "6 5", op: em(ctx, "base", 1, 0.6) });
+    if (ctx.hl !== "none") G.fn(x => rA * base(x), { c: "muted", w: em(ctx, "base", 3, 1.5), dash: "6 5", op: em(ctx, "base", 1, 0.6) });
     G.fn(f, { c: "accent", w: 3.5 });
     const T = 2 * PI / st.B, XMAX = 4 * PI;
     if (H(ctx, "shift") && c) { // 平行移動の矢印
@@ -150,7 +150,7 @@ UNITS.push({
     if (ctx.touch && Math.abs(a - 1) > 1e-9) { G.fn(x => (1 / a) ** x, { c: "muted", w: 1.5, dash: "5 5", op: 0.5 }); G.label(-2.5, (1 / a) ** -2.5, `y = (1/${N(a, 1)})ˣ`, { pos: "w", c: "muted", size: 12 }); }
     G.fn(f, { c: "accent", w: 3.5 });
     G.point(0, 1, { c: "blue", r: 6, label: "(0, 1)", pos: "nw", size: em(ctx, "one", 18, 13), pop: H(ctx, "one") });
-    if (Math.abs(a - 1) > 1e-9 && st.mark !== 1) G.point(1, a, { c: "ink", r: 4.5, label: `(1, ${N(a, 2)})`, pos: a > 1 ? "nw" : "ne", size: 13 });
+    if (Math.abs(a - 1) > 1e-9 && st.mark !== 1 && ctx.hl !== "none") G.point(1, a, { c: "ink", r: 4.5, label: `(1, ${N(a, 2)})`, pos: a > 1 ? "nw" : "ne", size: 13 });
     const m = st.mark ?? st.mx ?? 2;
     if (st.mark != null || ctx.touch) {
       G.line(m, 0, m, f(m), { c: "warm", dash: "5 5", w: 1.5 }); G.line(0, f(m), m, f(m), { c: "warm", dash: "5 5", w: 1.5 });
