@@ -54,14 +54,34 @@ UNITS.push({
     if (a + b === 0) b = b > 0 ? b + 1 : b - 1;
     if (a > b) [a, b] = [b, a];
     const f = (p, q) => { const s = [p, q].sort((m, n) => m - n); return sh2(s[0]) + sh2(s[1]); };
+    const neg = a < 0 || b < 0, asPlus = `(x + ${pn(a)})(x + ${pn(b)})`;
+    const mul = `${N(a)} × ${pn(b)} = ${N(a * b)}`, add = `${N(a)} + ${pn(b)} = ${N(a + b)}`;
     if (Math.random() < 0.6) {
-      const c = choose(f(a, b), [f(-a, -b), f(a, -b), f(-a, b), f(a + 1, b - 1)]);
-      return { q: `${P(1, a + b, a * b)} を因数分解すると？`, ...c, hint: `かけて ${N(a * b)}、たして ${N(a + b)} になる 2 つの数をさがそう`, exp: `${N(a)} × ${pn(b)} = ${N(a * b)}、${N(a)} + ${pn(b)} = ${N(a + b)} なので<br><b>${f(a, b)}</b>`, st: { a, b } };
+      // まちがいの組 (u, v) を 展開すると どこが ちがうか
+      const wf = (u, v, pre = "") => [f(u, v), u * v !== a * b ? `${pre}展開すると 数の項が ${N(u * v)}。かけて ${N(a * b)} に ならない` : `${pre}展開すると x の係数が ${N(u + v)}。たして ${N(a + b)} に ならない`];
+      const c = chooseW(f(a, b), [wf(-a, -b, "符号が反対。"), wf(a, -b, "片方の符号が反対。"), wf(-a, b, "片方の符号が反対。"), wf(a + 1, b - 1)]);
+      return { q: `${P(1, a + b, a * b)} を因数分解すると？`, ...c, hint: `かけて ${N(a * b)}、たして ${N(a + b)} になる 2 つの数をさがそう`, exp: [
+        [`x² + □x + ○ の形 → <b>かけて ${N(a * b)}</b>、<b>たして ${N(a + b)}</b> になる 2 つの数を さがす`, `${P(1, a + b, a * b)} = (x + □)(x + □)`],
+        [`${N(a)} と ${N(b)} を ためす`, `${mul} ✓<br>${add} ✓`],
+        [`その 2 つの数を かっこに 入れる${neg ? `（+ (${N(Math.min(a, b))}) は ${MI} ${Math.abs(Math.min(a, b))} と書く）` : ""}`, `${neg ? asPlus + " = " : ""}<b>${f(a, b)}</b>`],
+      ], point: "因数分解は「かけて 数の項、たして x の係数」の 2 つの数を さがす", st: { a, b } };
     }
-    const c = choose(P(1, a + b, a * b), [P(1, a * b, a + b), P(1, a + b, -a * b), P(1, -(a + b), a * b), P(1, a - b, a * b)]);
-    return { q: `${f(a, b)} を展開すると？`, ...c, hint: "x の係数は a + b、数の項は a × b", exp: `x の係数は ${N(a)} + ${pn(b)} = ${N(a + b)}、数の項は ${N(a)} × ${pn(b)} = ${N(a * b)}<br><b>${P(1, a + b, a * b)}</b>`, st: { a, b } };
+    const c = chooseW(P(1, a + b, a * b), [
+      [P(1, a * b, a + b), "x の係数と 数の項が 入れかわっている。x の係数は たし算、数の項は かけ算"],
+      [P(1, a + b, -a * b), `数の項の 符号が反対。${mul}`],
+      [P(1, -(a + b), a * b), `x の係数の 符号が反対。${add}`],
+      [P(1, a - b, a * b), "x の係数は ひき算ではなく たし算で 出す"],
+    ]);
+    return { q: `${f(a, b)} を展開すると？`, ...c, hint: "x の係数は a + b、数の項は a × b", exp: [
+      ["公式 (x + a)(x + b) = x² + (a + b)x + ab を使う", `${neg ? `${f(a, b)} = ${asPlus}、` : ""}a = ${N(a)}、b = ${N(b)}`],
+      ["x の係数は <b>たし算</b> a + b", add],
+      ["数の項は <b>かけ算</b> a × b", mul],
+      ["x²、x の項、数の項 の順に ならべる", `<b>${P(1, a + b, a * b)}</b>`],
+    ], point: "x の係数は たし算、数の項は かけ算。マイナスは かっこをつけて 計算", st: { a, b } };
   },
 });
+/* かっこなしの x + a */
+const uq = a => sh2(a).replace(/^\((.*)\)$/, "$1");
 function sh2(a) { return a === 0 ? "x" : `(x ${a < 0 ? MI : "+"} ${Math.abs(a)})`; }
 
 /* ---------- 2. 2次関数のグラフ ---------- */
@@ -107,17 +127,40 @@ UNITS.push({
   },
   gen() {
     const a = pick([1, 2, 3, -1, -2, -3]), p = nz(-4, 4), q = nz(-4, 4), st = { a, p, q };
-    const t = rint(0, 2);
+    const t = rint(0, 2), f = vform(a, p, q), inP = `(x ${p > 0 ? MI : "+"} ${Math.abs(p)})`;
+    // 「(x − p) の p」を 読みとる手順（3 つの問題で 共通）
+    const readP = [`式を y = a(x − <b>p</b>)² + <b>q</b> の形と ならべる`, `${f}`], getP = [`かっこの中 ${inP} → p = <b>${N(p)}</b>${p < 0 ? `（x + ${-p} は x − (${N(p)}) のこと）` : ""}`, `p = ${N(p)}`];
+    const getQ = [`うしろの数 → q = <b>${N(q)}</b>`, `q = ${N(q)}`];
     if (t === 0) {
-      const c = choose(pt(p, q), [pt(-p, q), pt(p, -q), pt(-p, -q), pt(q, p)]);
-      return { q: `${vform(a, p, q)} の 頂点 は？`, ...c, hint: "y = a(x − p)² + q の頂点は (p, q)。かっこの中の符号に注意", exp: `${vform(a, p, q)} は p = ${N(p)}、q = ${N(q)}<br>頂点は <b>${pt(p, q)}</b>`, st, hl: "vertex" };
+      const c = chooseW(pt(p, q), [
+        [pt(-p, q), `x 座標の 符号が反対。かっこの中が ${inP} なら p = ${N(p)}（符号が 反対に見える ところが ワナ）`],
+        [pt(p, -q), `y 座標の 符号が反対。うしろの数は そのまま q = ${N(q)}`],
+        [pt(-p, -q), "x 座標も y 座標も 符号が反対。かっこの中だけ 反対に見えて、うしろの数は そのまま"],
+        [pt(q, p), "x と y が 入れかわっている。かっこの中が x 座標、うしろの数が y 座標"],
+      ]);
+      return { q: `${f} の 頂点 は？`, ...c, hint: "y = a(x − p)² + q の頂点は (p, q)。かっこの中の符号に注意", exp: [readP, getP, getQ, ["頂点は (p, q)", `頂点 <b>${pt(p, q)}</b>`]], point: "かっこの中の数は 符号を反対にして読む。うしろの数は そのまま", st, hl: "vertex" };
     }
     if (t === 1) {
-      const c = choose(`x = ${N(p)}`, [`x = ${N(-p)}`, `x = ${N(q)}`, `y = ${N(q)}`, `y = ${N(p)}`, `x = ${N(-q)}`, `x = ${N(p + 1)}`]);
-      return { q: `${vform(a, p, q)} の 軸 は？`, ...c, hint: "軸は 頂点を通る たての線 x = p", exp: `頂点が ${pt(p, q)} なので、軸は <b>x = ${N(p)}</b>`, st, hl: "axis" };
+      const c = chooseW(`x = ${N(p)}`, [
+        [`x = ${N(-p)}`, `符号が反対。かっこの中が ${inP} なら p = ${N(p)}`],
+        [`x = ${N(q)}`, "q は 頂点の 高さ（y 座標）。軸は 頂点の x 座標を通る たての線"],
+        [`y = ${N(q)}`, "y = … は 横の線。軸は たての線なので x = … の形"],
+        [`y = ${N(p)}`, "y = … は 横の線。軸は たての線なので x = … の形"],
+        [`x = ${N(-q)}`, "q は 軸と 関係ない。かっこの中の数を 見る"],
+        [`x = ${N(p + 1)}`, "かっこの中の数を そのまま 符号を反対にすれば よい"],
+      ]);
+      return { q: `${f} の 軸 は？`, ...c, hint: "軸は 頂点を通る たての線 x = p", exp: [readP, getP, ["軸は 頂点を通る たての線 x = p", `軸 <b>x = ${N(p)}</b>`]], point: "軸は いつも「x = 数」の形（たての線）", st, hl: "axis" };
     }
-    const c = choose(vform(a, p, q), [vform(a, -p, q), vform(a, p, -q), vform(a, -p, -q)]);
-    return { q: `y = ${co(a)}x² を x 軸方向に ${N(p)}、y 軸方向に ${N(q)} 平行移動した式は？`, ...c, hint: "x 軸方向に p → x を (x − p) にかえる。y 軸方向に q → + q", exp: `頂点が (0, 0) から ${pt(p, q)} にうつるので<br><b>${vform(a, p, q)}</b>`, st, hl: "ghost vertex" };
+    const c = chooseW(f, [
+      [vform(a, -p, q), `x 軸方向に ${N(p)} → x を (x − ${pn(p)}) にかえる。${p > 0 ? "右に動かすのに + にすると 左に動く" : "マイナス方向なので (x + " + (-p) + ") になる"}`],
+      [vform(a, p, -q), `y 軸方向に ${N(q)} → うしろに そのまま ${sg(q).trim()} をつける`],
+      [vform(a, -p, -q), "x も y も 符号が反対。x は (x − p)、y は + q"],
+    ]);
+    return { q: `y = ${co(a)}x² を x 軸方向に ${N(p)}、y 軸方向に ${N(q)} 平行移動した式は？`, ...c, hint: "x 軸方向に p → x を (x − p) にかえる。y 軸方向に q → + q", exp: [
+      ["頂点の動きで 考える", `(0, 0) → ${pt(p, q)}`],
+      [`x 軸方向に ${N(p)}：x を (x − ${pn(p)}) にかえる`, `y = ${co(a)}${sh("x", p)}²`],
+      [`y 軸方向に ${N(q)}：うしろに ${sg(q).trim()}`, `<b>${f}</b>`],
+    ], point: "頂点が (p, q) → y = a(x − p)² + q。a（開き方）は かわらない", st, hl: "ghost vertex" };
   },
 });
 
@@ -157,12 +200,29 @@ UNITS.push({
   gen() {
     const h = nz(-4, 4), c = rint(-5, 8), b = 2 * h, k = c - h * h, st = { b, c, view: sqcView({ b, c }) };
     const form = (hh, kk) => `y = ${sh("x", -hh)}²${sg(kk)}`;
+    const X = sh("x", -h), hh = h * h;
+    const s1 = [`x の係数 ${N(b)} の <b>半分</b>を 出す`, `${N(b)} ÷ 2 = ${N(h)}`];
+    const s2 = [`${X}² を つくる。広げると <b>${hh}</b> が よけいに出る`, `${X}² = ${P(1, b, hh)}`];
+    const s3 = [`よけいな ${hh} を <b>ひいて</b> おく`, `y = ${X}² ${MI} ${hh}${sg(c)}`];
+    const s4 = (last) => c === 0 ? ["うしろの数は ひいた分だけ", last] : ["うしろの数を まとめる", `${MI}${hh} + ${pn(c)} = ${N(k)}<br>${last}`];
     if (Math.random() < 0.5) {
-      const c2 = choose(form(h, k), [form(-h, k), form(h, c + h * h), form(h, c), form(-h, c - h * h + 2)]);
-      return { q: `y = ${P(1, b, c)} を平方完成すると？`, ...c2, hint: `x の係数 ${N(b)} の半分は ${N(h)}。(x ${h < 0 ? MI : "+"} ${Math.abs(h)})² をつくって、よけいな ${h * h} をひく`, exp: `${P(1, b, c)} = ${sh("x", -h)}² ${MI} ${h * h}${sg(c)}<br>= <b>${form(h, k)}</b>`, st, hl: "vertex" };
+      const c2 = chooseW(form(h, k), [
+        [form(-h, k), `かっこの中の 符号が反対。x の係数が ${b > 0 ? "+" : MI} なら かっこの中も ${b > 0 ? "+" : MI}（x の係数と 同じ符号）`],
+        [form(h, c + hh), `${hh} を たしている。広げると よけいに出る ${hh} は ひく`],
+        [form(h, c), `よけいに出る ${hh} を ひきわすれている`],
+        [form(-h, c - hh + 2), "かっこの中の 符号が反対で、うしろの数も ちがう"],
+      ]);
+      return { q: `y = ${P(1, b, c)} を平方完成すると？`, ...c2, hint: `x の係数 ${N(b)} の半分は ${N(h)}。(x ${h < 0 ? MI : "+"} ${Math.abs(h)})² をつくって、よけいな ${hh} をひく`, exp: [s1, s2, s3, s4(`<b>${form(h, k)}</b>`)], point: "x の係数の 半分で (x + 半分)² をつくり、よけいな (半分)² を ひく", st, hl: "vertex" };
     }
-    const c2 = choose(pt(-h, k), [pt(h, k), pt(-h, c), pt(h, -k), pt(-h, -k), pt(-h, k + 1), pt(h, c)]);
-    return { q: `y = ${P(1, b, c)} の 頂点 は？`, ...c2, hint: "まず平方完成して y = (x − p)² + q の形にしよう", exp: `${form(h, k)} なので、頂点は <b>${pt(-h, k)}</b>`, st, hl: "vertex" };
+    const c2 = chooseW(pt(-h, k), [
+      [pt(h, k), `x 座標の 符号が反対。${X}² の頂点の x 座標は かっこの中と 符号が反対`],
+      [pt(-h, c), `よけいに出る ${hh} を ひきわすれている`],
+      [pt(h, -k), "x 座標も y 座標も 符号が反対"],
+      [pt(-h, -k), "y 座標の 符号が反対。うしろの数は そのまま y 座標"],
+      [pt(-h, k + 1), "y 座標の 計算ミス。うしろの数の まとめ方を もう一度"],
+      [pt(h, c), `x 座標の 符号が反対で、よけいな ${hh} も ひきわすれている`],
+    ]);
+    return { q: `y = ${P(1, b, c)} の 頂点 は？`, ...c2, hint: "まず平方完成して y = (x − p)² + q の形にしよう", exp: [s1, s2, s3, s4(form(h, k)), ["頂点は (p, q)。かっこの中の数は 符号を反対にして読む", `頂点 <b>${pt(-h, k)}</b>`]], point: "まず 平方完成。頂点の x 座標は かっこの中と 符号が反対", st, hl: "vertex" };
   },
 });
 
@@ -227,12 +287,32 @@ UNITS.push({
     const st = { a, p, q, s, e }; st.view = mmView(st, s, e);
     const { f, mx, mn } = mmCalc(st), wantMax = Math.random() < 0.5;
     const ans = wantMax ? mx.y : mn.y;
-    const c = chooseNum(ans, [f(s), f(e), q, f(p + 1), wantMax ? mn.y : mx.y]);
-    const word = wantMax ? "最大値" : "最小値", inside = p >= s && p <= e;
+    const word = wantMax ? "最大値" : "最小値", inside = p >= s && p <= e, more = wantMax ? "もっと大きい" : "もっと小さい";
+    const c = chooseNumW(ans, [
+      [wantMax ? mn.y : mx.y, `それは ${wantMax ? "最小値" : "最大値"}。聞かれているのは ${word}`],
+      [q, inside ? `頂点の y 座標 ${N(q)} は ${a > 0 ? "最小値（下に凸）" : "最大値（上に凸）"}。${word}は はし で きまる` : `頂点（x = ${N(p)}）は 範囲の外なので 使えない。範囲の中だけで 考える`],
+      [f(s), `x = ${N(s)}（左はし）の y の値。${more} y が ある`],
+      [f(e), `x = ${N(e)}（右はし）の y の値。${more} y が ある`],
+      [f(p + 1), p + 1 > e ? `x = ${N(p + 1)} の y の値。x = ${N(p + 1)} は 範囲の外なので 使えない` : `x = ${N(p + 1)} の y の値。そこは はし でも 頂点でもない`],
+      ...[1, -1, 2, -2, 3, -3].map(d => [ans + d, "計算ミス。① から もう一度 たしかめよう"]),
+    ]);
+    // x を入れて y を計算する式
+    const sub = x => {
+      const sq = (x - p) ** 2, inner = p === 0 ? N(x) : `${N(x)} ${p > 0 ? MI : "+"} ${Math.abs(p)}`;
+      return `x = ${N(x)} → y = ${a < 0 ? MI : ""}(${inner})²${sg(q)} = ${q === 0 ? "" : N(a * sq) + sg(q) + " = "}${N(f(x))}`;
+    };
+    const tgt = wantMax ? mx : mn, both = wantMax ? mmCalc(st).bothMx : mmCalc(st).bothMn;
+    const exp = [
+      ["平方完成して 頂点と 軸を 出す", `y = ${P(a, -2 * a * p, a * p * p + q)} = ${vform(a, p, q).slice(4)}<br>頂点 ${pt(p, q)}、軸 x = ${N(p)}（${a > 0 ? "下に凸 ∪" : "上に凸 ∩"}）`],
+      ["軸が 範囲の 中か 外かを 見る", `範囲 ${N(s)} ≦ x ≦ ${N(e)}、軸 x = ${N(p)} → 範囲の<b>${inside ? "中" : "外"}</b>`],
+      ["両はしの y を 計算する", `${sub(s)}<br>${sub(e)}`],
+    ];
+    if (inside) exp.push(["軸が 範囲の中なので 頂点も 候補", `x = ${N(p)} → y = ${N(q)}（頂点）`]);
+    exp.push([`いちばん ${wantMax ? "大きい" : "小さい"} y が ${word}`, `${word} <b>${N(ans)}</b>（x = ${both ? `${N(s)}, ${N(e)}` : N(tgt.x)}）`]);
     return {
       q: `y = ${P(a, -2 * a * p, a * p * p + q)}（${N(s)} ≦ x ≦ ${N(e)}）の <b>${word}</b> は？`, ...c,
       hint: `平方完成すると ${vform(a, p, q)}（${a > 0 ? "下に凸" : "上に凸"}）。軸 x = ${N(p)} は 範囲の${inside ? "中" : "外"}`,
-      exp: `${vform(a, p, q)}、x = ${N(s)} のとき ${N(f(s))}、x = ${N(e)} のとき ${N(f(e))}${inside ? `、頂点で ${N(q)}` : ""}<br>${word}は <b>${N(ans)}</b>`,
+      exp, point: "候補は 両はし と（範囲の中なら）頂点。その y を くらべれば まちがえない",
       st, hl: wantMax ? "range max" : "range min",
     };
   },
@@ -274,20 +354,50 @@ UNITS.push({
     if (t === 0) {
       const r1 = rint(-5, 4), r2 = r1 + rint(1, Math.min(5, 6 - r1)), b = -(r1 + r2), c = r1 * r2;
       const f = (u, v) => u === v ? null : `x = ${N(Math.min(u, v))}, ${N(Math.max(u, v))}`; // 「x = 2, 2」のような形は出さない
-      const ch = choose(f(r1, r2), [f(-r2, -r1), f(r1, -r2), f(-r1, r2), f(r1 + 1, r2 + 1), f(r1 - 1, r2 - 1)], 4, () => f(r1 + nz(-2, 2), r2 + nz(-2, 2)) || f(r1 - 3, r2 + 2));
-      return { q: `${P(1, b, c)} = 0 を解くと？`, ...ch, hint: `かけて ${N(c)}、たして ${N(b)} の 2 数で因数分解`, exp: `${sh2(-r1)}${sh2(-r2)} = 0 より <b>${f(r1, r2)}</b>`, st: { b, c }, hl: "roots" };
+      const g = x => x * x + b * x + c, r = r1 !== 0 ? r1 : r2;
+      // まちがいの解 (u, v)：入れても 0 に ならない x を 見せる
+      const wr = (u, v, pre = "") => { const w = [u, v].find(x => x !== r1 && x !== r2), s = f(u, v); return s && w !== undefined ? [s, `${pre}x = ${N(w)} を 入れると ${N(g(w))} になって 0 に ならない`] : [null, ""]; };
+      const ch = chooseW(f(r1, r2), [
+        [f(-r2, -r1), `符号が反対。${uq(-r)} = 0 なら x = ${N(r)}（かっこの中と 符号が反対）`],
+        wr(r1, -r2, "片方の符号が反対。"), wr(-r1, r2, "片方の符号が反対。"), wr(r1 + 1, r2 + 1), wr(r1 - 1, r2 - 1),
+        wr(r1 - 1, r2), wr(r1, r2 + 1), wr(r1 + 1, r2 + 2), wr(r1 - 2, r2 - 1),
+      ], 4, () => f(r1 + nz(-2, 2), r2 + nz(-2, 2)) || f(r1 - 3, r2 + 2));
+      return { q: `${P(1, b, c)} = 0 を解くと？`, ...ch, hint: `かけて ${N(c)}、たして ${N(b)} の 2 数で因数分解`, exp: [
+        [`かけて ${N(c)}、たして ${N(b)} になる 2 つの数を さがす`, `${N(-r1)} × ${pn(-r2)} = ${N(c)}、${N(-r1)} + ${pn(-r2)} = ${N(b)}`],
+        ["左辺を 因数分解する", `${r1 * r2 === 0 ? "x" + sh2(-(r1 + r2)) : sh2(-r1) + sh2(-r2)} = 0`],
+        ["かっこの どちらかが 0 になる x が 解（かっこの中と 符号が反対）", `${uq(-r1)} = 0 → x = ${N(r1)}<br>${uq(-r2)} = 0 → x = ${N(r2)}`],
+        ["2 つの解を ならべる", `<b>${f(r1, r2)}</b>`],
+      ], point: "(x − α)(x − β) = 0 なら x = α, β。かっこの中と 符号が反対になる", st: { b, c }, hl: "roots" };
     }
     const kind = rint(0, 2); let b, c;
     if (kind === 0) { b = nz(-6, 6); c = rint(-5, Math.floor((b * b - 1) / 4)); }
     else if (kind === 1) { b = 2 * nz(-3, 3); c = b * b / 4; }
     else { b = rint(-4, 4); c = Math.floor(b * b / 4) + rint(1, 4); }
     const D = b * b - 4 * c, n = D > 0 ? 2 : D === 0 ? 1 : 0;
+    const dIn = [`a = 1、b = ${N(b)}、c = ${N(c)} を D = b² − 4ac に 入れる（マイナスは かっこをつける）`, `D = ${pn(b)}² − 4·1·${pn(c)}`];
+    const dCalc = last => ["かけ算・2 乗を してから まとめる", `D = ${b * b}${c === 0 ? ` ${MI} 0` : sg(-4 * c)} = ${last}`];
     if (t === 1) {
-      const ch = { ch: ["0 個", "1 個", "2 個"], ans: n };
-      return { q: `y = ${P(1, b, c)} のグラフと x 軸の共有点は 何個？`, ...ch, one: true, hint: "判別式 D = b² − 4ac の符号を見よう", exp: `D = ${pn(b)}² − 4·1·${pn(c)} = ${N(D)} ${D > 0 ? "> 0" : D === 0 ? "= 0" : "< 0"}<br>なので <b>${n} 個</b>`, st: { b, c }, hl: "D roots" };
+      const sgn = D > 0 ? "> 0" : D === 0 ? "= 0" : "&lt; 0";
+      const why = {
+        "0 個": D > 0 ? `D = ${N(D)} は プラス。0 個は D &lt; 0 のとき` : `0 個は D &lt; 0 のとき。D = 0 は x 軸に 接する`,
+        "1 個": `1 個は D = 0（x 軸に 接する）のとき。D = ${N(D)} ${sgn}`,
+        "2 個": D === 0 ? "2 個は D > 0 のとき。D = 0 は x 軸に 接する" : `D = ${N(D)} は マイナス。2 個は D > 0 のとき`,
+      };
+      delete why[n + " 個"];
+      const ch = { ch: ["0 個", "1 個", "2 個"], ans: n, why };
+      return { q: `y = ${P(1, b, c)} のグラフと x 軸の共有点は 何個？`, ...ch, one: true, hint: "判別式 D = b² − 4ac の符号を見よう", exp: [
+        dIn, dCalc(N(D)),
+        ["D の 符号で 個数が きまる：D > 0 → 2 個、D = 0 → 1 個、D &lt; 0 → 0 個", `D ${sgn} → <b>${n} 個</b>`],
+      ], point: "D > 0 → 2 個、D = 0 → 1 個（接する）、D &lt; 0 → 0 個", st: { b, c }, hl: "D roots" };
     }
-    const ch = chooseNum(D, [b * b + 4 * c, b * b - c, -b * b - 4 * c, 2 * b - 4 * c]);
-    return { q: `${P(1, b, c)} = 0 の 判別式 D の値は？`, ...ch, hint: "D = b² − 4ac（a = 1）", exp: `D = ${pn(b)}² − 4·1·${pn(c)} = <b>${N(D)}</b>`, st: { b, c }, hl: "D" };
+    const ch = chooseNumW(D, [
+      [b * b + 4 * c, "− 4ac の マイナスを わすれて たしている"],
+      [b * b - c, "4 を かけわすれている。D = b² − 4·1·c"],
+      [-b * b - 4 * c, `${pn(b)}² を マイナスにしている。2 乗は 0 以上：${pn(b)}² = ${b * b}`],
+      [2 * b - 4 * c, `b² を 2b にしている。${pn(b)}² = ${pn(b)} × ${pn(b)} = ${b * b}`],
+      ...[2, -2, 4, -4].map(d => [D + d, "計算ミス。① から もう一度 たしかめよう"]),
+    ]);
+    return { q: `${P(1, b, c)} = 0 の 判別式 D の値は？`, ...ch, hint: "D = b² − 4ac（a = 1）", exp: [dIn, dCalc(`<b>${N(D)}</b>`)], point: "D = b² − 4ac。マイナスの数は (−3)² のように かっこをつけて 2 乗", st: { b, c }, hl: "D" };
   },
 });
 
@@ -345,9 +455,20 @@ UNITS.push({
   gen() {
     const al = rint(-5, 3), be = al + rint(1, Math.min(5, 5 - al)), s = pick(["<", ">", "≦", "≧"]), st = { al, be, sg: s };
     const other = { "<": ">", ">": "<", "≦": "≧", "≧": "≦" }[s], flip = { "<": "≦", "≦": "<", ">": "≧", "≧": ">" }[s];
-    const c = choose(ineqAns(al, be, s), [ineqAns(al, be, other), ineqAns(al, be, flip), ineqAns(-be, -al, s), ineqAns(al - 1, be, s), ineqAns(al, be + 1, other)]);
-    const below = s === "<" || s === "≦";
-    return { q: `${P(1, -(al + be), al * be)} ${s} 0 を解くと？`, ...c, one: true, hint: `因数分解すると ${sh2(-al)}${sh2(-be)}。${below ? "0 より小さい → グラフが下" : "0 より大きい → グラフが上"}`, exp: `${sh2(-al)}${sh2(-be)} ${s} 0、交点は x = ${N(al)}, ${N(be)}<br>グラフが x 軸より${below ? "下（内側）" : "上（外側）"}${s === "≦" || s === "≧" ? "、= もふくむ" : ""}<br><b>${ineqAns(al, be, s)}</b>`, st, hl: "roots below ans" };
+    const below = s === "<" || s === "≦", eq = s === "≦" || s === "≧", r = al !== 0 ? al : be, se = s.replace("<", "&lt;"), fac = al * be === 0 ? "x" + sh2(-(al + be)) : sh2(-al) + sh2(-be);
+    const c = chooseW(ineqAns(al, be, s), [
+      [ineqAns(al, be, other), below ? `内側と外側が 反対。${se} 0 は グラフが x 軸より 下 → 2 つの交点の 間` : `内側と外側が 反対。${se} 0 は グラフが x 軸より 上 → 2 つの交点の 外側`],
+      [ineqAns(al, be, flip), eq ? `${se} には = が あるので 交点も ふくむ（≦ を使う）` : `${se} には = が ないので 交点は ふくまない（&lt; を使う）`],
+      [ineqAns(-be, -al, s), `交点の 符号が反対。${uq(-r)} = 0 なら x = ${N(r)}（かっこの中と 符号が反対）`],
+      [ineqAns(al - 1, be, s), `はしの数が ちがう。はしは グラフと x 軸の 交点 x = ${N(al)}, ${N(be)}`],
+      [ineqAns(al, be + 1, other), "内側と外側が 反対で、はしの数も ちがう"],
+    ]);
+    return { q: `${P(1, -(al + be), al * be)} ${s} 0 を解くと？`, ...c, one: true, hint: `因数分解すると ${sh2(-al)}${sh2(-be)}。${below ? "0 より小さい → グラフが下" : "0 より大きい → グラフが上"}`, exp: [
+      [`左辺を 因数分解する（かけて ${N(al * be)}、たして ${N(-(al + be))} の 2 数）`, `${fac} ${se} 0`],
+      ["グラフと x 軸の 交点は かっこが 0 になる x", `x = ${N(al)}, ${N(be)}`],
+      [`${se} 0 は グラフが x 軸より <b>${below ? "下" : "上"}</b> → 交点の ${below ? "<b>間</b>（内側）" : "<b>外側</b>"}`, below ? `${N(al)} と ${N(be)} の 間` : `${N(al)} より 左、${N(be)} より 右`],
+      [eq ? "= が あるので 交点も ふくむ → ≦" : "= が ないので 交点は ふくまない → &lt;", `<b>${ineqAns(al, be, s).replace(/</g, "&lt;")}</b>`],
+    ], point: "&lt; 0 は 交点の 間、> 0 は 外側。= が あれば ≦", st, hl: "roots below ans" };
   },
 });
 
@@ -417,9 +538,19 @@ UNITS.push({
     if (Math.random() < 0.25) { // θ を求める
       const v = pick([["1/2", "30°, 150°"], ["1/√2", "45°, 135°"], ["√3/2", "60°, 120°"]]);
       const all = ["30°, 150°", "45°, 135°", "60°, 120°", "30°", "60°", "150°"];
-      const c = choose(v[1], shuffle(all.filter(a => a !== v[1])));
       const t0 = parseInt(v[1]);
-      return { q: `sin θ = ${tv(v[0])}（0° ≦ θ ≦ 180°）のとき θ は？`, ...c, hint: "y 座標が同じになる点は、円の上に 2 つある（左右対称）", exp: `y 座標が ${tv(v[0])} の点は 左右に 2 つ<br><b>θ = ${v[1]}</b>`, st: { t: t0, t2: 180 - t0 }, hl: "sin" };
+      const wa = x => { // まちがいの θ の 理由
+        const d = parseInt(x), two = x.includes(","), mine = d === t0 || d === 180 - t0;
+        if (mine) return `${x} だけでは たりない。${180 - d}° も sin が ${tv(v[0])}（左右対称）で、答えは 2 つ`;
+        return `sin ${d}° = ${tv(TRIG[d][0])}。${tv(v[0])} ではない${two ? "" : "（それに 答えは 2 つ ある）"}`;
+      };
+      const c = chooseW(v[1], shuffle(all.filter(a => a !== v[1])).map(x => [x, wa(x)]));
+      return { q: `sin θ = ${tv(v[0])}（0° ≦ θ ≦ 180°）のとき θ は？`, ...c, hint: "y 座標が同じになる点は、円の上に 2 つある（左右対称）", exp: [
+        ["sin θ は 半径 1 の円の 点 P の <b>y 座標</b>", `y 座標 = ${tv(v[0])}`],
+        [`三角定規から sin ${t0}° = ${tv(v[0])}`, `θ = ${t0}°`],
+        [`y 座標が 同じ点は 左右対称に もう 1 つ ある`, `180° ${MI} ${t0}° = ${180 - t0}°`],
+        ["2 つとも 答え", `<b>θ = ${v[1]}</b>`],
+      ], point: "sin θ = 正の数 の θ は 2 つ：θ と 180° − θ", st: { t: t0, t2: 180 - t0 }, hl: "sin" };
     }
     const fi = rint(0, 2), name = ["sin", "cos", "tan"][fi];
     let ang = pick([0, 30, 45, 60, 90, 120, 135, 150, 180]);
@@ -427,9 +558,33 @@ UNITS.push({
     const val = TRIG[ang][fi];
     const pool = fi === 2 ? ["0", "1/√3", "1", "√3", "−1/√3", "−1", "−√3"] : ["0", "1/2", "1/√2", "√3/2", "1", "−1/2", "−1/√2", "−√3/2", "−1"];
     const neg = val.startsWith("−") ? val.slice(1) : val === "0" ? "1" : "−" + val;
-    const c = choose(tv(val), [tv(neg), ...shuffle(pool).map(tv)]);
     const how = fi === 0 ? "y 座標" : fi === 1 ? "x 座標" : "y ÷ x（直線 OP の傾き）";
-    return { q: `${name} ${ang}° の値は？`, ...c, hint: `半径 1 の円で ${ang}° の点 P をかこう。${name} は ${how}`, exp: `${ang}° の点 P の ${how} → <b>${name} ${ang}° = ${tv(val)}</b>`, st: { t: ang }, hl: ["sin", "cos", "tan"][fi] + " tri" };
+    const [sv, cv] = TRIG[ang], P0 = `(${tv(cv)}, ${tv(sv)})`, abs = x => x.replace(/^−/, "");
+    const zeroAt = fi === 1 ? "90°" : "0° と 180°";
+    const signWhy = fi === 0 ? "0° 〜 180° では P は 円の 上半分。y 座標（sin）は マイナスに ならない"
+      : fi === 1 ? (ang > 90 ? `${ang}° は 90° より大きい → P は 左側 → cos（x 座標）は マイナス` : `${ang}° は 90° より小さい → P は 右側 → cos（x 座標）は プラス`)
+      : (ang > 90 ? "90° より大きいと x が マイナス、y が プラス → tan = y ÷ x は マイナス" : "90° より小さいと x も y も プラス → tan も プラス");
+    const wv = w => { // まちがいの値 w の 理由
+      if (val === "0") return `${ang}° の点 P は ${P0}。${fi === 2 ? `tan = y ÷ x = 0 ÷ ${pn(Number(cv.replace("−", "-")))} = 0` : `${how}は 0`}`;
+      if (w === "0") return `${name} が 0 に なるのは ${zeroAt} のとき`;
+      if (abs(w) === abs(val)) return `符号が反対。${signWhy}`;
+      if (fi < 2 && TRIG[ang][1 - fi] === w) return `それは ${["sin", "cos"][1 - fi]} ${ang}° の値。${name} は ${how}`;
+      const a2 = [30, 45, 60, 120, 135, 150, 0, 90, 180].find(A => A !== ang && TRIG[A][fi] === w);
+      if (a2 != null) return `それは ${name} ${a2}° の値。${ang}° の点 P を かいて たしかめよう`;
+      return `${ang}° の点 P を かいて ${how}を たしかめよう`;
+    };
+    const c = chooseW(tv(val), [neg, ...shuffle(pool)].map(w => [tv(w), wv(w)]));
+    const exp = [[`半径 1 の円に ${ang}° の点 P を とる`, `P = (cos ${ang}°, sin ${ang}°)`]];
+    if (ang % 90 === 0) exp.push([`P は ${ang === 90 ? "真上" : ang === 0 ? "右はし" : "左はし"} に ある`, `P = ${P0}`]);
+    else {
+      const k = ang < 90 ? ang : 180 - ang, ratio = k === 45 ? "1 : 1 : √2" : "1 : 2 : √3";
+      exp.push([`${ang < 90 ? "" : "x 軸の 左側と "}${k}° の 三角定規（${ratio}、ななめの辺 1）を 使う`, `たて ${tv(sv)}、よこ ${tv(abs(cv))}`]);
+      if (ang > 90) exp.push(["P は 左側なので x 座標は マイナス", `P = ${P0}`]);
+      else exp.push(["P は 右上なので どちらも プラス", `P = ${P0}`]);
+    }
+    exp.push(fi === 2 ? ["tan は y ÷ x", `tan ${ang}° = ${tv(sv)} ÷ ${cv.startsWith("−") ? `(${tv(cv)})` : tv(cv)} = <b>${tv(val)}</b>`] : [`${name} は P の ${how}`, `${name} ${ang}° = <b>${tv(val)}</b>`]);
+    const point = ["sin は y 座標。0° 〜 180° では マイナスに ならない", "cos は x 座標。90° より大きいと マイナス", "tan = y ÷ x。90° より大きいと マイナス"][fi];
+    return { q: `${name} ${ang}° の値は？`, ...c, hint: `半径 1 の円で ${ang}° の点 P をかこう。${name} は ${how}`, exp, point, st: { t: ang }, hl: ["sin", "cos", "tan"][fi] + " tri" };
   },
 });
 
@@ -524,20 +679,49 @@ UNITS.push({
     if (r < 0.45) {
       const [b, c, A, a] = pick([[5, 8, 60, 7], [3, 8, 60, 7], [8, 15, 60, 13], [3, 5, 120, 7], [7, 8, 120, 13], [5, 3, 120, 7], [8, 5, 60, 7], [1, 1, 120, "√3"]]);
       const cosv = A === 60 ? fr(1, 2) : `(${MI}${fr(1, 2)})`;
-      const ans = String(a), nums = typeof a === "number" ? [a + 1, a - 1, a * a, b + c].map(String) : ["3", "1", "√2"];
-      const c2 = choose(ans, nums);
-      return { q: `△ABC で b = ${b}、c = ${c}、A = ${A}° のとき、a は？`, ...c2, hint: "2 辺とその間の角 → 余弦定理 a² = b² + c² − 2bc cos A", exp: `a² = ${b}² + ${c}² − 2·${b}·${c}·${cosv} = ${b * b + c * c - (A === 60 ? 1 : -1) * b * c}<br>a = <b>${ans}</b>`, st: { mode: "cos", ...triFrom(b, c, A) }, hl: "a" };
+      const ans = String(a), a2 = b * b + c * c - (A === 60 ? 1 : -1) * b * c;
+      const cands = typeof a === "number" ? [
+        [String(a * a), `それは a² の値。最後に √ を とって a を 出す`],
+        [String(b + c), "b と c を たしただけ。余弦定理を 使おう（三角形では a は b + c より 小さい）"],
+        [String(a + 1), "計算ミス。a² の 計算を もう一度 たしかめよう"],
+        [String(a - 1), "計算ミス。a² の 計算を もう一度 たしかめよう"],
+      ] : [
+        ["3", "それは a² の値。最後に √ を とって a = √3"],
+        ["1", `cos 120° を ${fr(1, 2)}（プラス）に している。120° は 90° より大きいので マイナス`],
+        ["√2", "cos 120° を 0 に している（cos 90° = 0）。cos 120° = −½"],
+      ];
+      const c2 = chooseW(ans, cands);
+      return { q: `△ABC で b = ${b}、c = ${c}、A = ${A}° のとき、a は？`, ...c2, hint: "2 辺とその間の角 → 余弦定理 a² = b² + c² − 2bc cos A", exp: [
+        ["2 辺 b, c と その間の角 A が わかっている → <b>余弦定理</b>", "a² = b² + c² − 2bc cos A"],
+        [`数を 入れる（cos ${A}° = ${A === 60 ? fr(1, 2) : MI + fr(1, 2)}）`, `a² = ${b}² + ${c}² − 2·${b}·${c}·${cosv}`],
+        [A === 60 ? "計算する" : "計算する（− × − で プラスに なる）", `a² = ${b * b} + ${c * c} ${A === 60 ? MI : "+"} ${b * c} = ${a2}`],
+        ["a は 長さで プラスなので √ を とる", `a = ${typeof a === "number" ? `√${a2} = ` : ""}<b>${ans}</b>`],
+      ], point: "2 辺とその間の角 → 余弦定理。cos 120° = −½ の マイナスに 注意", st: { mode: "cos", ...triFrom(b, c, A) }, hl: "a" };
     }
     if (r < 0.7) {
       const [b, c, a, A] = pick([[5, 8, 7, 60], [3, 5, 7, 120], [3, 8, 7, 60], [8, 15, 13, 60], [7, 8, 13, 120]]);
-      const cv = (b * b + c * c - a * a) / (2 * b * c);
-      const c2 = choose(A + "°", ["30°", "45°", "60°", "90°", "120°", "135°", "150°"]);
-      return { q: `△ABC で a = ${a}、b = ${b}、c = ${c} のとき、角 A は？`, ...c2, hint: "余弦定理を cos A について：cos A = (b² + c² − a²) ÷ 2bc", exp: `cos A = (${b * b} + ${c * c} − ${a * a}) ÷ ${2 * b * c} = ${F(cv)}<br>A = <b>${A}°</b>`, st: { mode: "cos", ...triFrom(b, c, A) }, hl: "A" };
+      const cv = (b * b + c * c - a * a) / (2 * b * c), num = b * b + c * c - a * a;
+      const cosOf = { 30: "√3/2", 45: "1/√2", 60: "1/2", 90: "0", 120: "−1/2", 135: "−1/√2", 150: "−√3/2" };
+      const wa = x => { const d = parseInt(x); return d === 180 - A ? `cos ${x} = ${tv(cosOf[d])}。cos A が ${cv > 0 ? "プラスなので 90° より 小さい" : "マイナスなので 90° より 大きい"}` : `cos ${x} = ${tv(cosOf[d])}。cos A = ${F(cv)} と ちがう`; };
+      const c2 = chooseW(A + "°", ["30°", "45°", "60°", "90°", "120°", "135°", "150°"].map(x => [x, wa(x)]));
+      return { q: `△ABC で a = ${a}、b = ${b}、c = ${c} のとき、角 A は？`, ...c2, hint: "余弦定理を cos A について：cos A = (b² + c² − a²) ÷ 2bc", exp: [
+        ["3 辺が わかっている → 余弦定理を cos A について 使う", "cos A = (b² + c² − a²) ÷ 2bc"],
+        ["数を 入れる", `cos A = (${b}² + ${c}² − ${a}²) ÷ (2·${b}·${c})`],
+        ["計算する", `= (${b * b} + ${c * c} − ${a * a}) ÷ ${2 * b * c}<br>= ${N(num)} ÷ ${2 * b * c} = ${F(cv)}`],
+        [`cos が ${F(cv)} に なる角を さがす${cv < 0 ? "（マイナスなので 90° より大きい）" : ""}`, `A = <b>${A}°</b>`],
+      ], point: "cos A が プラス → 90° より小さい、マイナス → 90° より大きい", st: { mode: "cos", ...triFrom(b, c, A) }, hl: "A" };
     }
     const [A, aStr, R, sinS] = pick([[30, "6", 6, fr(1, 2)], [30, "10", 10, fr(1, 2)], [45, "4√2", 4, fr(1, "√2")], [60, "5√3", 5, fr("√3", 2)], [60, "3√3", 3, fr("√3", 2)], [90, "8", 4, "1"], [150, "4", 4, fr(1, 2)]]);
-    const c2 = choose(String(R), [String(R * 2), String(R + 1), String(Math.max(1, R - 1)), String(R * 3)]);
+    const gen = "計算ミス。正弦定理 a ÷ sin A = 2R を もう一度";
+    const c2 = chooseW(String(R), [[String(R * 2), `それは 2R（直径）。R は その 半分`], [String(R + 1), gen], [String(Math.max(1, R - 1)), gen], [String(R * 3), gen]]);
     const B = A >= 90 ? 20 : 50, Cc = 180 - A - B, b = 2 * R * Math.sin(B * Math.PI / 180), cc = 2 * R * Math.sin(Cc * Math.PI / 180);
-    return { q: `△ABC で a = ${aStr}、A = ${A}° のとき、外接円の半径 R は？`, ...c2, hint: "辺と向かいの角のペア → 正弦定理 a / sin A = 2R", exp: `${aStr} ÷ ${sinS} = 2R<br>2R = ${R * 2} なので <b>R = ${R}</b>`, st: { mode: "sin", ...triFrom(b, cc, A) }, hl: "a A" };
+    const mul = A === 90 ? `${aStr} ÷ 1` : A === 45 ? `${aStr} × √2` : A === 60 ? `${aStr} × ${fr(2, "√3")}` : `${aStr} × 2`;
+    return { q: `△ABC で a = ${aStr}、A = ${A}° のとき、外接円の半径 R は？`, ...c2, hint: "辺と向かいの角のペア → 正弦定理 a / sin A = 2R", exp: [
+      ["辺 a と 向かいの角 A の ペア → <b>正弦定理</b>", "a ÷ sin A = 2R"],
+      [`数を 入れる（sin ${A}° = ${sinS}）`, `${aStr} ÷ ${sinS} = 2R`],
+      [A === 90 ? "1 で わっても かわらない" : "分数で わる ＝ ひっくり返して かける", `2R = ${mul} = ${R * 2}`],
+      ["R は 2R の 半分", `R = ${R * 2} ÷ 2 = <b>${R}</b>`],
+    ], point: "辺と 向かいの角 → 正弦定理 a ÷ sin A = 2R。最後に 2 で わる", st: { mode: "sin", ...triFrom(b, cc, A) }, hl: "a A" };
   },
 });
 
@@ -601,9 +785,44 @@ UNITS.push({
     const lo = -Math.min(...devs), hi = 12 - Math.max(...devs), m = rint(lo, hi);
     const v = shuffle(devs.map(d => m + d)), S = stats(v), list = v.join(", ");
     const t = rint(0, 2);
-    if (t === 0) { const c = chooseNum(m, [m + 1, m - 1, S.med === m ? m + 2 : S.med]); return { q: `データ ${list} の 平均値 は？`, ...c, hint: "全部たして、個数 5 でわる", exp: `(${v.join(" + ")}) ÷ 5 = ${v.reduce((a, b) => a + b, 0)} ÷ 5 = <b>${m}</b>`, st: { v }, hl: "mean" }; }
-    if (t === 1) { const c = chooseNum(S.med, [m === S.med ? S.med + 1 : m, v[2], S.med - 1]); return { q: `データ ${list} の 中央値 は？`, ...c, hint: "小さい順にならべて、まん中（3 番目）", exp: `小さい順に ${S.s.join(", ")}<br>まん中は <b>${S.med}</b>`, st: { v }, hl: "box" }; }
-    const c = chooseNum(vr, [vr * 5, Math.round(Math.sqrt(vr) * 10) / 10, vr + 2]);
-    return { q: `データ ${list} の 分散 は？`, ...c, hint: `平均は ${m}。偏差（値 − 平均）を 2 乗して 平均する`, exp: `平均 ${m}、偏差 ${v.map(x => N(x - m)).join(", ")}<br>2 乗すると ${v.map(x => (x - m) ** 2).join(" + ")} = ${vr * 5}<br>${vr * 5} ÷ 5 = <b>${vr}</b>`, st: { v }, hl: "mean dev" };
+    const sum = v.reduce((a, b) => a + b, 0), meanStep = last => ["全部 たして、個数 5 で わる", `(${v.join(" + ")}) ÷ 5<br>= ${sum} ÷ 5 = ${last}`];
+    if (t === 0) {
+      const c = chooseNumW(m, [
+        [m + 1, "たし算の ミスかも。合計を もう一度 たしてから 5 で わろう"],
+        [m - 1, "たし算の ミスかも。合計を もう一度 たしてから 5 で わろう"],
+        S.med === m ? [m + 2, "計算ミス。合計 ÷ 個数 を もう一度"] : [S.med, "それは 中央値（まん中の値）。平均は 合計 ÷ 個数"],
+        [m + 2, "計算ミス。合計 ÷ 個数 を もう一度"], [m - 2, "計算ミス。合計 ÷ 個数 を もう一度"],
+      ]);
+      return { q: `データ ${list} の 平均値 は？`, ...c, hint: "全部たして、個数 5 でわる", exp: [
+        ["全部 たす", `${v.join(" + ")} = ${sum}`],
+        ["個数 5 で わる", `${sum} ÷ 5 = <b>${m}</b>`],
+      ], point: "平均 = 合計 ÷ 個数", st: { v }, hl: "mean" };
+    }
+    if (t === 1) {
+      const c = chooseNumW(S.med, [
+        m === S.med ? [S.med + 1, "小さい順に ならべて、3 番目を もう一度 たしかめよう"] : [m, "それは 平均値。中央値は 小さい順に ならべた まん中"],
+        [v[2], "ならべかえる前の 3 番目。まず 小さい順に ならべる"],
+        ...[-1, 2, -2, 1, 3].map(d => [S.med + d, "小さい順に ならべて、3 番目を もう一度 たしかめよう"]).filter(([x]) => x >= 0),
+      ]);
+      const ss = S.s;
+      return { q: `データ ${list} の 中央値 は？`, ...c, hint: "小さい順にならべて、まん中（3 番目）", exp: [
+        ["まず 小さい順に ならべる", ss.join(", ")],
+        ["5 個なので まん中は 3 番目", `${ss[0]}, ${ss[1]}, <b>${ss[2]}</b>, ${ss[3]}, ${ss[4]}<br>中央値 <b>${S.med}</b>`],
+      ], point: "中央値は 小さい順に ならべてから まん中を 見る", st: { v }, hl: "box" };
+    }
+    const c = chooseNumW(vr, [
+      [vr * 5, "偏差の 2 乗を たしたところで 止まっている。最後に 個数 5 で わる"],
+      [Math.round(Math.sqrt(vr) * 10) / 10, "√ を とっている。それは 標準偏差（の だいたいの値）。分散は √ を とらない"],
+      ...[2, 1, -1].map(d => [vr + d, "2 乗の 計算ミスかも。偏差を 1 つずつ 2 乗して たしかめよう"]),
+    ]);
+    const dv = v.map(x => x - m);
+    return { q: `データ ${list} の 分散 は？`, ...c, hint: `平均は ${m}。偏差（値 − 平均）を 2 乗して 平均する`, exp: [
+      ["平均を 出す", meanStep(m)[1]],
+      ["偏差 ＝ 値 − 平均 を 1 つずつ", v.map(x => `${x} ${MI} ${m} = ${N(x - m)}`).join("、")],
+      ["偏差を 2 乗する（マイナスも プラスに なる）", dv.map(d => `${pn(d)}² = ${d * d}`).join("、")],
+      ["2 乗を 全部 たして、個数 5 で わる", `(${dv.map(d => d * d).join(" + ")}) ÷ 5<br>= ${vr * 5} ÷ 5 = <b>${vr}</b>`],
+    ], point: "分散 = 偏差の 2 乗の 平均。標準偏差は その √", st: { v }, hl: "mean dev" };
   },
 });
+/* 理由（why）は 画面に出る まちがいの選択肢 だけに しぼる */
+UNITS.forEach(u => { const g = u.gen; u.gen = function () { const p = g.call(this); if (p.why) for (const k in p.why) if (!p.ch.includes(k) || k === p.ch[p.ans]) delete p.why[k]; return p; }; });

@@ -1,5 +1,8 @@
 "use strict";
 /* ===== 数学II の単元 ===== */
+/* 理由つき 4 択（util の chooseW / chooseNumW）。選ばれなかった候補の 理由は のぞく */
+function whyTrim(c) { for (const k in c.why) if (!c.ch.includes(k)) delete c.why[k]; return c; }
+const chooseWhy = (...a) => whyTrim(chooseW(...a)), chooseNumWhy = (...a) => whyTrim(chooseNumW(...a));
 
 /* ---------- 1. 円の方程式 ---------- */
 const circStr = (a, b, r2) => `${sh("x", a)}² + ${sh("y", b)}² = ${N(r2)}`;
@@ -39,18 +42,46 @@ UNITS.push({
   gen() {
     const a = nz(-4, 4), b = nz(-4, 4), r = rint(1, 5), st = { a, b, r };
     const t = rint(0, 2);
+    // かっこの中の数を 読む手順（x と y で 共通）
+    const rd = (v, p) => [`${v} のかっこ ${sh(v, p)} → ${v === "x" ? "a" : "b"} = <b>${N(p)}</b>${p < 0 ? `（${v} + ${-p} は ${v} − (${N(p)}) のこと）` : ""}`, `${v === "x" ? "a" : "b"} = ${N(p)}`];
     if (t === 0) {
-      const c = choose(pt(a, b), [pt(-a, -b), pt(-a, b), pt(a, -b), pt(b, a)]);
-      return { q: `円 ${circStr(a, b, r * r)} の 中心 は？`, ...c, hint: "(x − a)² + (y − b)² = r² の中心は (a, b)。符号に注意", exp: `x ${a > 0 ? "−" : "+"} ${Math.abs(a)} → a = ${N(a)}、y ${b > 0 ? "−" : "+"} ${Math.abs(b)} → b = ${N(b)}<br>中心 <b>${pt(a, b)}</b>`, st, hl: "center" };
+      const c = chooseWhy(pt(a, b), [
+        [pt(-a, -b), "x も y も 符号が反対。かっこの中の数は 符号を反対にして読む"],
+        [pt(-a, b), `x 座標の 符号が反対。${sh("x", a)} なら a = ${N(a)}`],
+        [pt(a, -b), `y 座標の 符号が反対。${sh("y", b)} なら b = ${N(b)}`],
+        [pt(b, a), "x と y が 入れかわっている。x のかっこ → x 座標、y のかっこ → y 座標"],
+      ]);
+      return { q: `円 ${circStr(a, b, r * r)} の 中心 は？`, ...c, hint: "(x − a)² + (y − b)² = r² の中心は (a, b)。符号に注意", exp: [
+        ["式を (x − <b>a</b>)² + (y − <b>b</b>)² = r² の形と ならべる", circStr(a, b, r * r)],
+        rd("x", a), rd("y", b),
+        ["中心は (a, b)", `中心 <b>${pt(a, b)}</b>`],
+      ], point: "かっこの中の数は 符号を反対にして読む → 中心 (a, b)", st, hl: "center" };
     }
     if (t === 1) {
-      const c = chooseNum(r, [r * r, r + 1, 2 * r, r + 2, r + 3]);
-      return { q: `円 ${circStr(a, b, r * r)} の 半径 は？`, ...c, hint: "右辺は r²（半径の 2 乗）", exp: `r² = ${r * r} なので 半径 <b>${r}</b>`, st, hl: "r" };
+      const no = v => `${v}² = ${v * v} で ${r * r} に ならない。2 乗して ${r * r} になる数が 半径`;
+      const c = chooseNumWhy(r, [[r * r, `右辺の ${r * r} は r²（半径の 2 乗）。半径は √${r * r} = ${r}`], [r + 1, no(r + 1)], [2 * r, no(2 * r)], [r + 2, no(r + 2)], [r + 3, no(r + 3)]]);
+      return { q: `円 ${circStr(a, b, r * r)} の 半径 は？`, ...c, hint: "右辺は r²（半径の 2 乗）", exp: [
+        ["右辺の数は r²（半径の 2 乗）", `r² = ${r * r}`],
+        [`2 乗して ${r * r} になる 正の数を さがす`, `${r} × ${r} = ${r * r}`],
+        ["だから 半径は", `r = √${r * r} = <b>${r}</b>`],
+      ], point: "右辺は r²。半径は √（右辺）", st, hl: "r" };
     }
     const D = -2 * a, E = -2 * b, Fc = a * a + b * b - r * r;
     const eq = poly([1, 1, D, E, Fc], ["x²", "y²", "x", "y", ""]) + " = 0";
-    const c = choose(`中心 ${pt(a, b)}、半径 ${r}`, [`中心 ${pt(-a, -b)}、半径 ${r}`, `中心 ${pt(a, b)}、半径 ${r * r}`, `中心 ${pt(-a, -b)}、半径 ${r * r}`, `中心 ${pt(a, b)}、半径 ${r + 1}`, `中心 ${pt(-a, -b)}、半径 ${r + 1}`]);
-    return { q: `円 ${eq} の 中心 と 半径 は？`, ...c, one: true, hint: `x と y それぞれ平方完成。x の係数 ${N(D)} の半分は ${N(D / 2)} → ${sh("x", a)}²`, exp: `${sh("x", a)}² − ${a * a} + ${sh("y", b)}² − ${b * b}${sg(Fc)} = 0<br>→ ${circStr(a, b, r * r)}<br><b>中心 ${pt(a, b)}、半径 ${r}</b>`, st, hl: "center r" };
+    const ctr = `${N(-Fc)} + ${a * a} + ${b * b} = ${r * r}`;
+    const c = chooseWhy(`中心 ${pt(a, b)}、半径 ${r}`, [
+      [`中心 ${pt(-a, -b)}、半径 ${r}`, `中心の 符号が反対。x の係数 ${N(D)} の半分は ${N(-a)} → ${sh("x", a)}² なので 中心の x は ${N(a)}`],
+      [`中心 ${pt(a, b)}、半径 ${r * r}`, `右辺の ${r * r} は r²。半径は √${r * r} = ${r}`],
+      [`中心 ${pt(-a, -b)}、半径 ${r * r}`, `中心の 符号が反対で、半径も r² のまま。中心 ${pt(a, b)}、半径 √${r * r} = ${r}`],
+      [`中心 ${pt(a, b)}、半径 ${r + 1}`, `右辺の計算ミス。${ctr} → 半径 √${r * r} = ${r}`],
+      [`中心 ${pt(-a, -b)}、半径 ${r + 1}`, `中心の 符号が反対で、半径も ちがう。右辺は ${ctr}`],
+    ]);
+    return { q: `円 ${eq} の 中心 と 半径 は？`, ...c, one: true, hint: `x と y それぞれ平方完成。x の係数 ${N(D)} の半分は ${N(D / 2)} → ${sh("x", a)}²`, exp: [
+      ["x の項、y の項で まとめて、数を 右へ うつす", `(${P(1, D, 0)}) + (${poly([1, E, 0], ["y²", "y", ""])}) = ${N(-Fc)}`],
+      [`x の係数 ${N(D)} の半分は ${N(-a)}、y の係数 ${N(E)} の半分は ${N(-b)}。それぞれ 平方完成して、よけいな ${a * a} と ${b * b} を ひく`, `${sh("x", a)}² ${MI} ${a * a} + ${sh("y", b)}² ${MI} ${b * b} = ${N(-Fc)}`],
+      [`ひいた ${a * a} と ${b * b} を 右へ うつす（たす）`, `${sh("x", a)}² + ${sh("y", b)}² = ${ctr}`],
+      [`中心は かっこの中の数の 符号を反対に。半径は √${r * r}`, `<b>中心 ${pt(a, b)}、半径 ${r}</b>`],
+    ], point: "x と y それぞれ 平方完成 → (x − a)² + (y − b)² = r² の形にする", st, hl: "center r" };
   },
 });
 
@@ -116,19 +147,39 @@ UNITS.push({
   gen() {
     const f = pick(["sin", "cos"]), A = pick([1, 2, 3]), B = pick([0.5, 2, 3, 1]), st = { f, A, B, C: 0 };
     const t = rint(0, 2);
+    const Bs = B === 0.5 ? fr(1, 2) : String(B); // x の前の数
+    const Bstep = [`x の前の数を 見る${B === 1 ? `（${f} x のように 数がないときは 1）` : ""}`, `x の前の数 = ${Bs}`];
     if (t === 0) {
-      const [pn2, pd] = periodOf(B);
-      const c = choose(piH(pn2, pd), shuffle(["4π", "2π", "π", "6π", fr("π", 2), fr("2π", 3), fr("π", 3)]));
-      return { q: `${trigStr(f, A, B, 0)} の 周期 は？`, ...c, hint: "周期 = 2π ÷（x の前の数）", exp: `2π ÷ ${B === 0.5 ? fr(1, 2) : B} = <b>${piH(pn2, pd)}</b>`, st, hl: "per" };
+      const [pn2, pd] = periodOf(B), ans = piH(pn2, pd);
+      const times = piH(Math.round(4 * B), 2), half = piH(2, Math.round(2 * B)); // 2π × B、π ÷ B
+      const why = s => s === times ? `2π ÷ ${Bs} ではなく 2π × ${Bs} にしている。周期は わり算` : s === half ? `π ÷ ${Bs} にしている。もとの周期は π ではなく 2π` : s === "2π" ? `x の前の数 ${Bs} を 使っていない。周期 = 2π ÷ ${Bs}` : A !== 1 && s === piH(2, A) ? `${f} の前の ${A} で わっている。わるのは x の前の数 ${Bs}` : `2π ÷ ${Bs} を もう一度 計算しよう`;
+      const c = chooseWhy(ans, shuffle(["4π", "2π", "π", "6π", fr("π", 2), fr("2π", 3), fr("π", 3)]).map(s => [s, why(s)]));
+      const calc = B === 0.5 ? `2π ÷ ${fr(1, 2)} = 2π × 2 = <b>${ans}</b>` : `2π ÷ ${B} = <b>${ans}</b>`;
+      return { q: `${trigStr(f, A, B, 0)} の 周期 は？`, ...c, hint: "周期 = 2π ÷（x の前の数）", exp: [
+        [`もとの y = ${f} x の 周期は 2π。x の前の数で わると 周期が 出る`, "周期 = 2π ÷（x の前の数）"],
+        Bstep,
+        ...(A !== 1 ? [[`${f} の前の ${A} は たての大きさ（振幅）。周期には 関係ない`, ""]] : []),
+        [`2π を ${Bs} で わる`, calc],
+      ], point: "周期 = 2π ÷（x の前の数）", st, hl: "per" };
     }
     if (t === 1) {
-      const c = chooseNum(A, [B !== A && B >= 1 ? B : A + 3, 2 * A, A + 1, A + 2]);
-      return { q: `${trigStr(f, A, B, 0)} の 振幅（最大値）は？`, ...c, hint: `${f} の前の数 が 振幅`, exp: `${f} の値は −1 から 1 なので、${A} 倍して <b>${A}</b>`, st, hl: "amp" };
+      const w = v => v === 1 ? `${f} の 最大 1 のまま。前の ${A} を かけるのを わすれている` : v === B ? `${B} は x の前の数（周期に関係する）。振幅は ${f} の前の数` : v === 2 * A ? `山の上から 谷の下までの 長さ（${2 * A}）になっている。振幅は 0 から 山の上まで` : v === -A ? `${N(-A)} は いちばん低いところ（最小値）。振幅は 山の高さなので 正の数` : A === 1 ? `${f} の前に 数がないので 振幅は 1` : `${f} の前の数 ${A} を そのまま 読めばよい`;
+      const c = chooseNumWhy(A, [B !== A && B >= 1 ? B : A + 3, 2 * A, A + 1, -A, A + 2, A + 3].map(v => [v, w(v)]));
+      return { q: `${trigStr(f, A, B, 0)} の 振幅（最大値）は？`, ...c, hint: `${f} の前の数 が 振幅`, exp: [
+        [`${f} の値は いつも −1 から 1 の間`, `${MI}1 ≦ ${f} ≦ 1`],
+        [A === 1 ? `${f} の前に 数がない（1 倍）ので、y も −1 から 1 の間` : `前の ${A} を かけると、y は ${N(-A)} から ${A} の間`, `${N(-A)} ≦ y ≦ ${A}`],
+        ...(B !== 1 ? [[`x の前の ${Bs} は 横の のびちぢみ（周期）。高さには 関係ない`, ""]] : []),
+        ["いちばん高いところ（山の高さ）が 振幅", `振幅 <b>${A}</b>`],
+      ], point: "振幅 = sin・cos の前の数（x の前の数は 周期）", st, hl: "amp" };
     }
     const deg = pick([30, 45, 60, 90, 120, 135, 150, 180, 270, 360]);
     const g = gcd(deg, 180), ans = piH(deg / g, 180 / g);
-    const c = choose(ans, shuffle([[1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [5, 6], [1, 1], [3, 2], [2, 1]]).map(p => piH(p[0], p[1])));
-    return { q: `${deg}° を ラジアン で表すと？`, ...c, hint: "180° = π。180 で わって π をかける", exp: `${deg}° = ${deg} ÷ 180 × π = <b>${ans}</b>`, st: { f: "sin", A: 1, B: 1, C: 0, markX: [deg * PI / 180, `${deg}° = ${piS(deg / g, 180 / g)}`] }, hl: "base" };
+    const c = chooseWhy(ans, shuffle([[1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [5, 6], [1, 1], [3, 2], [2, 1]]).map(p => [piH(p[0], p[1]), `${piH(p[0], p[1])} は ${180 * p[0] / p[1]}°（π = 180° を 入れると わかる）。${deg}° ÷ 180 × π で 計算しよう`]));
+    return { q: `${deg}° を ラジアン で表すと？`, ...c, hint: "180° = π。180 で わって π をかける", exp: [
+      ["180° = π を 使う", "180° = π"],
+      [`${deg}° は 180° の 何倍？ 180 で わる`, `${deg} ÷ 180 = ${F(deg / 180)}`],
+      ["その数に π を かける", `${deg}° = ${F(deg / 180)} × π = <b>${ans}</b>`],
+    ], point: "度 → ラジアン：180 で わって π を かける（180° = π）", st: { f: "sin", A: 1, B: 1, C: 0, markX: [deg * PI / 180, `${deg}° = ${piS(deg / g, 180 / g)}`] }, hl: "base" };
   },
 });
 
@@ -180,19 +231,36 @@ UNITS.push({
         [8, "2/3", 4, 2, 2, "(2³)<sup>2/3</sup> = 2²"], [27, "2/3", 9, 3, 2, "(3³)<sup>2/3</sup> = 3²"], [4, "3/2", 8, 2, 3, "(2²)<sup>3/2</sup> = 2³"], [16, "3/4", 8, 2, 3, "(2⁴)<sup>3/4</sup> = 2³"],
         [9, "1/2", 3, 3, 1, "(3²)<sup>1/2</sup> = 3¹"], [32, "2/5", 4, 2, 2, "(2⁵)<sup>2/5</sup> = 2²"], [16, "1/4", 2, 2, 1, "(2⁴)<sup>1/4</sup> = 2¹"], [27, "1/3", 3, 3, 1, "(3³)<sup>1/3</sup> = 3¹"],
       ]);
-      const c = chooseNum(ans, [ans * 2, ans + 1, Math.round(base * ex.split("/")[0] / ex.split("/")[1]), ans - 1].filter(v => v > 0));
-      return { q: `${base}${sup(ex)} の値は？`, ...c, hint: `${base} を ${a} の何乗かで表してみよう`, exp: `${base}${sup(ex)} = ${how} = <b>${ans}</b>`, st: { a, mark: m }, hl: "mark" };
+      const [en, ed] = ex.split("/").map(Number), k = Math.round(Math.log(base) / Math.log(a)); // base = a^k
+      const mul = Array(m).fill(a).join(" × "), chk = m === 1 ? `${a}¹ = ${ans}` : `${a}${sup(m)} = ${mul} = ${ans}`;
+      const c = chooseNumWhy(ans, [
+        [ans * 2, a === 2 ? `2 を かける回数が 1 回 多い。${chk}` : `2 倍しなくてよい。${chk}`],
+        [ans + 1, `計算ミス。${chk}`],
+        [Number.isInteger(base * en / ed) ? base * en / ed : null, `${base} × ${ex} のような ふつうの かけ算を している。指数は「何回 かけるか」を表す`],
+        [ans - 1, `計算ミス。${chk}`],
+      ].filter(v => v[0] > 0));
+      return { q: `${base}${sup(ex)} の値は？`, ...c, hint: `${base} を ${a} の何乗かで表してみよう`, exp: [
+        [`${base} を ${a} の 何乗かで 表す`, `${base} = ${Array(k).fill(a).join(" × ")} = ${a}${sup(k)}`],
+        ["( ) の累乗は 指数どうしを かける", `${base}${sup(ex)} = (${a}${sup(k)})${sup(ex)} = ${a}${sup(`${k} × ${ex}`)} = ${a}${sup(m)}`],
+        [m === 1 ? `${a}¹ は ${a} そのもの` : `${a} を ${m} 回 かける`, m === 1 ? `${a}¹ = <b>${ans}</b>` : `${a}${sup(m)} = ${mul} = <b>${ans}</b>`],
+      ], point: "a<sup>m/n</sup> は まず 底を そろえる（8 = 2³ など）→ 指数どうしを かける", st: { a, mark: m }, hl: "mark" };
     }
-    const [q, ans, cands, a, m, how] = pick([
-      [`2${sup("−3")}`, fr(1, 8), [MI + "8", MI + "6", fr(1, 6)], 2, -3, `1 ÷ 2³ = ${fr(1, 8)}`],
-      [`3${sup("−2")}`, fr(1, 9), [MI + "9", MI + "6", fr(1, 6)], 3, -2, `1 ÷ 3² = ${fr(1, 9)}`],
-      [`2³ × 2⁴`, `2${sup(7)}`, [`2${sup(12)}`, `4${sup(7)}`, `4${sup(12)}`], 2, null, "かけ算は 指数をたす：3 + 4 = 7"],
-      [`(2³)²`, `2${sup(6)}`, [`2${sup(5)}`, `2${sup(9)}`, `2${sup(8)}`], 2, null, "（ ）の累乗は 指数をかける：3 × 2 = 6"],
-      [`3⁵ ÷ 3²`, `3${sup(3)}`, [`3${sup(7)}`, `3${sup("5/2")}`, `1${sup(3)}`], 3, null, "わり算は 指数をひく：5 − 2 = 3"],
-      [`5⁰`, "1", ["0", "5", MI + "5"], 5, 0, "どんな数も 0 乗は 1"],
+    const [q, ans, cands, a, m, steps, point] = pick([
+      [`2${sup(MI + "3")}`, fr(1, 8), [[MI + "8", "マイナスの指数は マイナスの数 ではない。2⁻³ = 1 ÷ 2³"], [MI + "6", "2 × (−3) と かけ算している。指数は「何回 かけるか」"], [fr(1, 6), "2³ を 2 × 3 = 6 にしている。2³ = 2 × 2 × 2 = 8"]], 2, -3,
+        [["マイナスの指数は「1 ÷」に なおす", `a${sup(MI + "n")} = 1 ÷ a${sup("n")}`], ["2⁻³ を なおす", `2${sup(MI + "3")} = 1 ÷ 2³`], ["2³ を 計算する", "2³ = 2 × 2 × 2 = 8"], ["わり算を 分数にする", `1 ÷ 8 = <b>${fr(1, 8)}</b>`]], `a${sup(MI + "n")} = 1 ÷ a${sup("n")}（マイナスの指数は 分数になる）`],
+      [`3${sup(MI + "2")}`, fr(1, 9), [[MI + "9", "マイナスの指数は マイナスの数 ではない。3⁻² = 1 ÷ 3²"], [MI + "6", "3 × (−2) と かけ算している。指数は「何回 かけるか」"], [fr(1, 6), "3² を 3 × 2 = 6 にしている。3² = 3 × 3 = 9"]], 3, -2,
+        [["マイナスの指数は「1 ÷」に なおす", `a${sup(MI + "n")} = 1 ÷ a${sup("n")}`], ["3⁻² を なおす", `3${sup(MI + "2")} = 1 ÷ 3²`], ["3² を 計算する", "3² = 3 × 3 = 9"], ["わり算を 分数にする", `1 ÷ 9 = <b>${fr(1, 9)}</b>`]], `a${sup(MI + "n")} = 1 ÷ a${sup("n")}（マイナスの指数は 分数になる）`],
+      [`2³ × 2⁴`, `2${sup(7)}`, [[`2${sup(12)}`, "指数を かけている。かけ算のときは 指数を たす"], [`4${sup(7)}`, "底の 2 どうしを たしている。底は 2 のまま"], [`4${sup(12)}`, "底も 指数も ちがう。底は 2 のまま、指数は たす"]], 2, null,
+        [["同じ底の かけ算は 指数を たす", `a${sup("m")} × a${sup("n")} = a${sup("m + n")}`], ["わけ：2 を 3 回 かけて、さらに 4 回 かける", "(2 × 2 × 2) × (2 × 2 × 2 × 2) → 2 を 7 回"], ["指数 3 と 4 を たす", `2³ × 2⁴ = 2${sup("3 + 4")} = <b>2${sup(7)}</b>`]], "同じ底の かけ算 → 指数を たす"],
+      [`(2³)²`, `2${sup(6)}`, [[`2${sup(5)}`, "指数を たしている。( ) の累乗は 指数を かける"], [`2${sup(9)}`, "3² = 9 と 累乗にしている。指数は 3 × 2"], [`2${sup(8)}`, "2³ = 8 を 指数に 使っている。指数は 3 × 2 = 6"]], 2, null,
+        [["( ) の累乗は 指数を かける", `(a${sup("m")})${sup("n")} = a${sup("m × n")}`], ["わけ：(2³)² は 2³ を 2 回 かけること", "2³ × 2³ → 2 を 3 + 3 = 6 回"], ["指数 3 と 2 を かける", `(2³)² = 2${sup("3 × 2")} = <b>2${sup(6)}</b>`]], "( ) の累乗 → 指数を かける"],
+      [`3⁵ ÷ 3²`, `3${sup(3)}`, [[`3${sup(7)}`, "指数を たしている。わり算のときは 指数を ひく"], [`3${sup("5/2")}`, "指数を わっている。わり算のときは 指数を ひく"], [`1${sup(3)}`, "底の 3 どうしを わっている。底は 3 のまま"]], 3, null,
+        [["同じ底の わり算は 指数を ひく", `a${sup("m")} ÷ a${sup("n")} = a${sup("m − n")}`], ["わけ：3 を 5 回 かけたものを、3 を 2 回 かけたもので わる", "約分すると 3 が 5 − 2 = 3 回 のこる"], ["指数 5 から 2 を ひく", `3⁵ ÷ 3² = 3${sup("5 − 2")} = <b>3${sup(3)}</b>`]], "同じ底の わり算 → 指数を ひく"],
+      [`5⁰`, "1", [["0", "0 乗は 0 ではない。どんな数も 0 乗は 1"], ["5", "それは 5¹。0 乗は 1"], [MI + "5", "マイナスには ならない。どんな数も 0 乗は 1"]], 5, 0,
+        [["0 乗は きまりで 1（0 以外の数）", "a⁰ = 1"], ["わけ：指数が 1 へるごとに ÷ 5 になる", "5² = 25 → 5¹ = 5 → 5⁰ = 5 ÷ 5 = 1"], ["だから", "5⁰ = <b>1</b>"]], "どんな数も 0 乗は 1"],
     ]);
-    const c = choose(ans, cands);
-    return { q: `${q} を計算すると？`, ...c, hint: "指数法則：aᵐ × aⁿ = aᵐ⁺ⁿ、(aᵐ)ⁿ = aᵐⁿ、a⁻ⁿ = 1 / aⁿ", exp: `${how}<br>答え <b>${ans}</b>`, st: { a, mark: m }, hl: m == null ? "" : "mark" };
+    const c = chooseWhy(ans, cands);
+    return { q: `${q} を計算すると？`, ...c, hint: "指数法則：aᵐ × aⁿ = aᵐ⁺ⁿ、(aᵐ)ⁿ = aᵐⁿ、a⁻ⁿ = 1 / aⁿ", exp: steps, point, st: { a, mark: m }, hl: m == null ? "" : "mark" };
   },
 });
 
@@ -235,20 +303,48 @@ UNITS.push({
   gen() {
     if (Math.random() < 0.65) {
       const [a, xs, xv, ans] = pick([[2, "8", 8, 3], [2, "16", 16, 4], [2, "4", 4, 2], [2, fr(1, 2), 0.5, -1], [2, fr(1, 4), 0.25, -2], [3, "9", 9, 2], [3, "27", 27, 3], [3, fr(1, 9), 1 / 9, -2], [10, "1000", 1000, 3], [10, "100", 100, 2], [5, "1", 1, 0], [5, "25", 25, 2]]);
-      const c = chooseNum(ans, [-ans, ans + 1, ans === 0 ? 1 : ans * 2, ans - 1]);
-      return { q: `${logS(a, xs)} の値は？`, ...c, hint: `${a} を何乗すると ${xs} になる？`, exp: `${a}<sup>${N(ans)}</sup> = ${xs} なので <b>${N(ans)}</b>`, st: { a, mx: xv, mxs: xv < 1 ? `1/${Math.round(1 / xv)}` : null, view: logView(xv, ans) }, hl: "mark" };
+      const pw = e => e >= 0 ? String(a ** e) : fr(1, a ** -e); // a の e 乗
+      const no = e => `${a}${sup(N(e))} = ${pw(e)} で ${xs} に ならない`;
+      const c = chooseNumWhy(ans, [
+        [-ans, `符号が反対。${xs} は 1 より ${ans > 0 ? "大きいので 答えは プラス" : "小さいので 答えは マイナス"}`],
+        [ans + 1, no(ans + 1)], [ans === 0 ? 1 : ans * 2, no(ans === 0 ? 1 : ans * 2)], [ans - 1, no(ans - 1)], [ans + 2, no(ans + 2)],
+      ]);
+      const how = ans > 0 ? [`${a} を ${ans} 回 かけると ${xs}`, `${a}${sup(ans)} = ${Array(ans).fill(a).join(" × ")} = ${xs}`]
+        : ans === 0 ? ["どんな数も 0 乗は 1", `${a}⁰ = 1`]
+        : ["1 より小さい数は マイナス乗（a⁻ⁿ = 1 ÷ aⁿ）", `${a}${sup(N(ans))} = 1 ÷ ${a}${sup(-ans)} = ${xs}`];
+      return { q: `${logS(a, xs)} の値は？`, ...c, hint: `${a} を何乗すると ${xs} になる？`, exp: [
+        [`「${a} を 何乗すると ${xs} になるか」と 考える`, `${logS(a, xs)} = □ → ${a}<sup>□</sup> = ${xs}`],
+        how,
+        ["□ に 入る数が 答え", `${logS(a, xs)} = <b>${N(ans)}</b>`],
+      ], point: "logₐ M は「a を 何乗すると M になるか」の 答え", st: { a, mx: xv, mxs: xv < 1 ? `1/${Math.round(1 / xv)}` : null, view: logView(xv, ans) }, hl: "mark" };
     }
     const ADD = "たし算 → 中身を かける", SUBT = "ひき算 → 中身を わる";
-    const [q, ans, how, a, mx, hint] = pick([
-      [`${logS(6, 2)} + ${logS(6, 18)}`, 2, `${logS(6, "(2 × 18)")} = ${logS(6, 36)} = 2`, 6, 36, ADD],
-      [`${logS(2, 12)} − ${logS(2, 3)}`, 2, `${logS(2, "(12 ÷ 3)")} = ${logS(2, 4)} = 2`, 2, 4, SUBT],
-      [`${logS(3, 6)} + ${logS(3, "1.5")}`, 2, `${logS(3, "(6 × 1.5)")} = ${logS(3, 9)} = 2`, 3, 9, ADD],
-      [`${logS(10, 4)} + ${logS(10, 25)}`, 2, `${logS(10, "(4 × 25)")} = ${logS(10, 100)} = 2`, 10, 100, ADD],
-      [`${logS(2, 24)} − ${logS(2, 3)}`, 3, `${logS(2, "(24 ÷ 3)")} = ${logS(2, 8)} = 3`, 2, 8, SUBT],
-      [`3 ${logS(2, 2)}`, 3, `${logS(2, 2)} = 1 なので 3 × 1 = 3（${logS(2, 8)} と同じ）`, 2, 8, `${logS("a", "a")} = 1。k ${logS("a", "M")} = ${logS("a", "M<sup>k</sup>")}`],
+    // [問題, 答え, 中身を 1 つにした式, 底, 中身, ヒント]
+    const [q, ans, mid, a, mx, hint] = pick([
+      [`${logS(6, 2)} + ${logS(6, 18)}`, 2, logS(6, "(2 × 18)"), 6, 36, ADD],
+      [`${logS(2, 12)} − ${logS(2, 3)}`, 2, logS(2, "(12 ÷ 3)"), 2, 4, SUBT],
+      [`${logS(3, 6)} + ${logS(3, "1.5")}`, 2, logS(3, "(6 × 1.5)"), 3, 9, ADD],
+      [`${logS(10, 4)} + ${logS(10, 25)}`, 2, logS(10, "(4 × 25)"), 10, 100, ADD],
+      [`${logS(2, 24)} − ${logS(2, 3)}`, 3, logS(2, "(24 ÷ 3)"), 2, 8, SUBT],
+      [`3 ${logS(2, 2)}`, 3, null, 2, 8, `${logS("a", "a")} = 1。k ${logS("a", "M")} = ${logS("a", "M<sup>k</sup>")}`],
     ]);
-    const c = chooseNum(ans, [ans + 1, ans - 1, ans * 2, 0]);
-    return { q: `${q} を計算すると？`, ...c, hint, exp: `${how}<br>答え <b>${ans}</b>`, st: { a, mx, view: logView(mx, ans) }, hl: "mark" };
+    const mul = Array(ans).fill(a).join(" × ");
+    if (!mid) { // 3 log₂ 2
+      const c = chooseNumWhy(ans, [[ans + 1, `${logS(2, 2)} = 1 なので 3 × 1 = 3`], [ans - 1, `${logS(2, 2)} = 1 なので 3 × 1 = 3`], [ans * 2, `${logS(2, 2)} を 2 としている。2¹ = 2 なので ${logS(2, 2)} = 1`], [0, `${logS(2, 2)} は 0 ではなく 1（2¹ = 2）。0 になるのは ${logS(2, 1)}`]]);
+      return { q: `${q} を計算すると？`, ...c, hint, exp: [
+        [`${logS(2, 2)} は「2 を 何乗すると 2？」`, `2¹ = 2 なので ${logS(2, 2)} = 1`],
+        ["前の 3 を かける", `3 ${logS(2, 2)} = 3 × 1 = <b>3</b>`],
+      ], point: `${logS("a", "a")} = 1、${logS("a", 1)} = 0`, st: { a, mx, view: logView(mx, ans) }, hl: "mark" };
+    }
+    const no = e => `中身は ${mx}。${a}${sup(e)} = ${a ** e} で ${mx} に ならない`;
+    const c = chooseNumWhy(ans, [ans + 1, ans - 1, ans * 2, 0].map(e => [e, no(e)]));
+    const isAdd = hint === ADD;
+    return { q: `${q} を計算すると？`, ...c, hint, exp: [
+      isAdd ? ["底が同じ log の たし算は、中身を かけて 1 つにできる", `${logS("a", "M")} + ${logS("a", "N")} = ${logS("a", "MN")}`]
+        : ["底が同じ log の ひき算は、中身を わって 1 つにできる", `${logS("a", "M")} − ${logS("a", "N")} = ${logS("a", "(M ÷ N)")}`],
+      [`中身を ${isAdd ? "かけ算" : "わり算"} する`, `${q} = ${mid} = ${logS(a, mx)}`],
+      [`「${a} を 何乗すると ${mx} になる？」`, `${a}${sup(ans)} = ${mul} = ${mx} → <b>${ans}</b>`],
+    ], point: isAdd ? "log の たし算 → 中身を かける" : "log の ひき算 → 中身を わる", st: { a, mx, view: logView(mx, ans) }, hl: "mark" };
   },
 });
 /* 対数の問題：答えの点が入る表示 */
@@ -321,21 +417,60 @@ UNITS.push({
     const t = rint(0, 2);
     if (t === 0) {
       const c = [pick([1, 2, -1]), rint(-3, 3), rint(-4, 4), rint(-3, 3)], k = rint(-2, 2), d = dv(c), ans = pv(d, k), y = pv(c, k);
-      const ch = chooseNum(ans, [pv(c, k), pv(d, k) + c[3], pv([3 * c[0], c[1], c[2]], k), ans + 2]);
       const sub = `${N(d[0])}·${pn(k)}²${d[1] ? ` ${d[1] < 0 ? MI : "+"} ${Math.abs(d[1])}·${pn(k)}` : ""}${sg(d[2])}`;
-      return { q: `f(x) = ${P(...c)} のとき、f′(${N(k)}) は？`, ...ch, hint: "まず微分：(x³)′ = 3x²、(x²)′ = 2x、(x)′ = 1、定数 → 0", exp: `f′(x) = ${P(...d)}<br>f′(${N(k)}) = ${sub} = <b>${N(ans)}</b>`, st: { c, t: k, df: 0, view: { xmin: k - 3, xmax: k + 3, ymin: Math.min(y, y + ans) - 3, ymax: Math.max(y, y + ans) + 3, equal: false } }, hl: "tan slope" };
+      const ch = chooseNumWhy(ans, [
+        [pv(c, k), `f(${N(k)}) を 計算している。先に 微分してから x = ${N(k)} を 入れる`],
+        [pv(d, k) + c[3], `数だけの項 ${N(c[3])} を のこしている。数だけの項は 微分すると 0`],
+        [pv([3 * c[0], c[1], c[2]], k), `x² の項の 微分で 2 を かけていない。(${P(c[1], 0, 0)})′ = ${P(2 * c[1], 0)}`],
+        [ans + 2, `計算ミス。f′(${N(k)}) = ${sub} を もう一度 計算しよう`],
+        [-ans, `符号ミス。f′(${N(k)}) = ${sub} を もう一度 計算しよう`],
+        [ans - 2, `計算ミス。f′(${N(k)}) = ${sub} を もう一度 計算しよう`],
+      ]);
+      const terms = c.map((k2, i) => k2 ? `(${poly([k2], [XV[3][i]])})′ = ${i === 3 ? "0" : poly([k2 * (3 - i)], [XV[3][i + 1]])}` : null).filter(Boolean).join("、");
+      const val = `${N(d[0] * k * k)}${sg(d[1] * k)}${sg(d[2])}`;
+      return { q: `f(x) = ${P(...c)} のとき、f′(${N(k)}) は？`, ...ch, hint: "まず微分：(x³)′ = 3x²、(x²)′ = 2x、(x)′ = 1、定数 → 0", exp: [
+        ["1 つずつ 微分する（xⁿ → n xⁿ⁻¹、数だけの項 → 0）", terms],
+        ["ならべて f′(x) にする", `f′(x) = ${P(...d)}`],
+        [`f′(x) に x = ${N(k)} を 入れる`, `f′(${N(k)}) = ${sub}`],
+        ["かけ算を してから たす", `= ${val} = <b>${N(ans)}</b>`],
+      ], point: "先に 微分して、あとから x に 数を入れる", st: { c, t: k, df: 0, view: { xmin: k - 3, xmax: k + 3, ymin: Math.min(y, y + ans) - 3, ymax: Math.max(y, y + ans) + 3, equal: false } }, hl: "tan slope" };
     }
     if (t === 1) {
       const c = [rint(1, 3), rint(-5, 5), rint(-5, 5)];
       if (c[1] === 0) c[1] = 2;
       const d = dv(c);
-      const ch = choose(P(...d), [P(c[0], c[1]), P(2 * c[0], c[1] + c[2]), P(2 * c[0], -c[1]), P(c[0] * 2, c[1] * 2)]);
-      return { q: `f(x) = ${P(...c)} を 微分すると？`, ...ch, hint: "(x²)′ = 2x、(x)′ = 1、数だけの項 → 0", exp: `(${P(c[0], 0, 0)})′ = ${P(2 * c[0], 0)}、(${P(c[1], 0)})′ = ${N(c[1])}${c[2] ? `、(${N(c[2])})′ = 0` : ""}<br><b>f′(x) = ${P(...d)}</b>`, st: { c, t: 0, df: 1, view: (() => { const vx = -c[1] / (2 * c[0]), vy = pv(c, vx); return { xmin: vx - 4, xmax: vx + 4, ymin: Math.min(vy, 0) - 3, ymax: Math.max(vy, 0) + 10, equal: false }; })() }, hl: "none" };
+      const ch = chooseWhy(P(...d), [
+        [P(c[0], c[1]), `x² の項で 2 を かけていない。(${P(c[0], 0, 0)})′ = ${P(2 * c[0], 0)}`],
+        [P(2 * c[0], c[1] + c[2]), `数だけの項 ${N(c[2])} を のこしている。数だけの項は 微分すると 0`],
+        [P(2 * c[0], -c[1]), `x の項の 符号が 反対。(${P(c[1], 0)})′ = ${N(c[1])}`],
+        [P(c[0] * 2, c[1] * 2), `x の項まで 2 倍している。(${P(c[1], 0)})′ = ${N(c[1])}（x が消えて 係数だけ のこる）`],
+      ]);
+      return { q: `f(x) = ${P(...c)} を 微分すると？`, ...ch, hint: "(x²)′ = 2x、(x)′ = 1、数だけの項 → 0", exp: [
+        ["x² の項：2 を 前に おろして かける", `(${P(c[0], 0, 0)})′ = ${c[0]} × 2x = ${P(2 * c[0], 0)}`],
+        ["x の項：x が消えて 係数だけ のこる", `(${P(c[1], 0)})′ = ${N(c[1])}`],
+        ...(c[2] ? [["数だけの項：微分すると 0", `(${N(c[2])})′ = 0`]] : []),
+        ["ならべる", `<b>f′(x) = ${P(...d)}</b>`],
+      ], point: "(x²)′ = 2x、(x)′ = 1、数だけの項 → 0", st: { c, t: 0, df: 1, view: (() => { const vx = -c[1] / (2 * c[0]), vy = pv(c, vx); return { xmin: vx - 4, xmax: vx + 4, ymin: Math.min(vy, 0) - 3, ymax: Math.max(vy, 0) + 10, equal: false }; })() }, hl: "none" };
     }
     const b = rint(-3, 3), cc = rint(-2, 3), k = rint(-2, 2), m = 2 * k + b, y0 = k * k + b * k + cc;
     const ans = `y = ${P(m, y0 - m * k)}`;
-    const ch = choose(ans, [`y = ${P(m, y0)}`, `y = ${P(y0, m)}`, `y = ${P(m, y0 + m * k)}`, `y = ${P(2 * k, y0 - 2 * k * k)}`], 4, () => { const mm = m + nz(-2, 2); return `y = ${P(mm, y0 - mm * k)}`; });
-    return { q: `y = ${P(1, b, cc)} の、x = ${N(k)} での 接線 は？`, ...ch, hint: `傾き f′(${N(k)}) と 接点 (${N(k)}, f(${N(k)})) を出そう`, exp: `f′(x) = ${P(2, b)}、傾き f′(${N(k)}) = ${N(m)}、接点 ${pt(k, y0)}<br>${sh("y", y0).replace(/^\(|\)$/g, "")} = ${m === 0 ? "0" : co(m) + sh("x", k)} → <b>${ans}</b>`, st: { c: [1, b, cc], t: k, df: 0, view: { xmin: k - 4, xmax: k + 4, ymin: y0 - 6, ymax: y0 + 6, equal: false } }, hl: "tan slope" };
+    const ch = chooseWhy(ans, [
+      [`y = ${P(m, y0)}`, `切片に f(${N(k)}) = ${N(y0)} を そのまま 使っている。y ${MI} f(a) = f′(a)(x ${MI} a) に 入れて 整理しよう`],
+      [`y = ${P(y0, m)}`, `傾きと 切片が 入れかわっている。傾きは f′(${N(k)}) = ${N(m)}`],
+      [`y = ${P(m, y0 + m * k)}`, `かっこを はずすときの 符号ミス。${co(m)}${sh("x", k)} = ${P(m, -m * k)}`],
+      [`y = ${P(2 * k, y0 - 2 * k * k)}`, `傾きを 2 × ${pn(k)} だけで 出している。f′(x) = ${P(2, b)} なので f′(${N(k)}) = ${N(m)}`],
+      [m === 0 ? null : `y = ${P(m, -m * k)}`, `接点の y 座標 f(${N(k)}) = ${N(y0)} を たしていない。y = ${co(m)}${sh("x", k)}${sg(y0)}`],
+      [`y = ${P(-m, y0 + m * k)}`, `傾きの 符号が 反対。傾きは f′(${N(k)}) = ${N(m)}`],
+    ], 4, () => { const mm = m + nz(-2, 2); return `y = ${P(mm, y0 - mm * k)}`; });
+    const fk = `${pn(k)}²${b ? ` ${b < 0 ? MI : "+"} ${Math.abs(b) === 1 ? "" : Math.abs(b) + "·"}${pn(k)}` : ""}${sg(cc)}`;
+    const lhs = sh("y", y0).replace(/^\(|\)$/g, ""), rhs = m === 0 ? "0" : co(m) + sh("x", k);
+    return { q: `y = ${P(1, b, cc)} の、x = ${N(k)} での 接線 は？`, ...ch, hint: `傾き f′(${N(k)}) と 接点 (${N(k)}, f(${N(k)})) を出そう`, exp: [
+      ["微分して 傾きの式を つくる", `f′(x) = ${P(2, b)}`],
+      [`x = ${N(k)} を 入れて 傾きを 出す`, `f′(${N(k)}) = 2·${pn(k)}${sg(b)} = ${N(m)}`],
+      [`もとの式に x = ${N(k)} を 入れて 接点の y 座標を 出す`, `f(${N(k)}) = ${fk} = ${N(y0)} → 接点 ${pt(k, y0)}`],
+      [`y ${MI} f(a) = f′(a)(x ${MI} a) に 入れる`, `${lhs} = ${rhs}`],
+      ["かっこを はずして y = … に 整理する", m === 0 || k === 0 ? `<b>${ans}</b>` : `y = ${P(m, -m * k)}${sg(y0)} → <b>${ans}</b>`],
+    ], point: "接線：傾き f′(a) と 接点 (a, f(a)) → y − f(a) = f′(a)(x − a)", st: { c: [1, b, cc], t: k, df: 0, view: { xmin: k - 4, xmax: k + 4, ymin: y0 - 6, ymax: y0 + 6, equal: false } }, hl: "tan slope" };
   },
 });
 
@@ -395,13 +530,36 @@ UNITS.push({
     const st = { c, t: 0, view: { xmin: -p - 2.5, xmax: p + 2.5, ymin: mn - 3, ymax: mx + 3, equal: false } };
     const fd = `f′(x) = ${P(3 * sgn, 0, -3 * sgn * p * p)} = ${sgn < 0 ? MI : ""}3(x + ${p})(x − ${p})`;
     const signs = sgn > 0 ? "＋ → − → ＋" : "− → ＋ → −";
+    const kind = wantMax ? "極大" : "極小", other = wantMax ? "極小" : "極大";
+    const sgS = v => v > 0 ? "＋ ↗" : "− ↘";
+    const base = [
+      ["微分する", `f′(x) = ${P(3 * sgn, 0, -3 * sgn * p * p)}`],
+      ["因数分解して f′(x) = 0 を 解く", `${sgn < 0 ? MI : ""}3(x + ${p})(x − ${p}) = 0 → x = ${N(-p)}, ${p}`],
+      [`x = ${N(-p)}, ${p} で 区切って f′(x) の 符号を しらべる（たとえば x = 0 なら f′(0) = ${N(-3 * sgn * p * p)}）`, `x < ${N(-p)}：${sgS(sgn)} ／ ${N(-p)} < x < ${p}：${sgS(-sgn)} ／ ${p} < x：${sgS(sgn)}`],
+      [wantMax ? "＋ → −（↗ から ↘ に かわる）ところが 山 → 極大" : "− → ＋（↘ から ↗ に かわる）ところが 谷 → 極小", `${signs} なので x = ${N(xAt)} で ${kind}`],
+    ];
     if (Math.random() < 0.3) {
-      const ch = choose(`x = ${N(xAt)}`, [`x = ${N(-xAt)}`, `x = ${N(3 * p * p)}`, "x = 0"]);
-      return { q: `f(x) = ${P(...c)} が <b>${wantMax ? "極大" : "極小"}</b> になる x は？`, ...ch, hint: "f′(x) = 0 の解をさがして、＋ → − が極大、− → ＋ が極小", exp: `${fd}<br>f′ の符号は ${signs} なので ${wantMax ? "極大" : "極小"}は <b>x = ${N(xAt)}</b>`, st, hl: "inc ext" };
+      const ch = chooseWhy(`x = ${N(xAt)}`, [
+        [`x = ${N(-xAt)}`, `それは ${other} になる x。${wantMax ? "＋ → −" : "− → ＋"} に かわる ほうを えらぶ`],
+        [`x = ${N(3 * p * p)}`, `${3 * p * p} は f(x) の x の係数の 数。f′(x) = 0 を 解いた x が 答え`],
+        ["x = 0", `x = 0 では f′(0) = ${N(-3 * sgn * p * p)} で 0 に ならない`],
+      ]);
+      base[3][1] = `<b>x = ${N(xAt)}</b>`;
+      return { q: `f(x) = ${P(...c)} が <b>${kind}</b> になる x は？`, ...ch, hint: "f′(x) = 0 の解をさがして、＋ → − が極大、− → ＋ が極小", exp: base, point: "f′ が ＋ → − で 極大（山）、− → ＋ で 極小（谷）", st, hl: "inc ext" };
     }
-    const ch = chooseNum(ans, [wantMax ? mn : mx, -ans, d, ans + 2]);
-    const subst = `${sgn < 0 ? MI : ""}(${N(xAt)})³ ${sgn < 0 ? "+" : MI} ${3 * p * p}·${pn(xAt)}${sg(d)}`;
-    return { q: `f(x) = ${P(...c)} の <b>${wantMax ? "極大値" : "極小値"}</b> は？`, ...ch, hint: `f′(x) = ${P(3 * sgn, 0, -3 * sgn * p * p)}。f′(x) = 0 の x を f(x) に入れる`, exp: `${fd}<br>符号は ${signs} → x = ${N(xAt)} で ${wantMax ? "極大" : "極小"}<br>f(${N(xAt)}) = ${subst} = <b>${N(ans)}</b>`, st, hl: "inc ext" };
+    const ch = chooseNumWhy(ans, [
+      [wantMax ? mn : mx, `それは ${other}値（x = ${N(-xAt)} のとき）。${kind}は x = ${N(xAt)}`],
+      [-ans, `符号ミス。f(${N(xAt)}) の 計算を もう一度 たしかめよう`],
+      [d, `それは f(0)。x = 0 ではなく x = ${N(xAt)} を 入れる`],
+      [ans + 2, `計算ミス。f(${N(xAt)}) の 計算を もう一度 たしかめよう`],
+      [ans - 2, `計算ミス。f(${N(xAt)}) の 計算を もう一度 たしかめよう`],
+    ]);
+    const subst = `${sgn < 0 ? MI + "(" + N(xAt) + ")" : pn(xAt)}³ ${sgn < 0 ? "+" : MI} ${3 * p * p}·${pn(xAt)}${sg(d)}`;
+    const arith = `${N(sgn * xAt ** 3)}${sg(-3 * sgn * p * p * xAt)}${sg(d)}`;
+    return { q: `f(x) = ${P(...c)} の <b>${kind}値</b> は？`, ...ch, hint: `f′(x) = ${P(3 * sgn, 0, -3 * sgn * p * p)}。f′(x) = 0 の x を f(x) に入れる`, exp: [
+      ...base,
+      [`もとの f(x) に x = ${N(xAt)} を 入れる`, `f(${N(xAt)}) = ${subst} = ${arith} = <b>${N(ans)}</b>`],
+    ], point: "極値は「f′(x) = 0 の x」を もとの f(x) に 入れて 出す", st, hl: "inc ext" };
   },
 });
 
@@ -466,12 +624,41 @@ UNITS.push({
     if (Math.random() < 0.55) {
       const [c, a, b] = pick([[[3, 0, 0], 0, 2], [[3, 0, 0], 1, 2], [[2, 0], 1, 3], [[2, 1], 0, 2], [[1, 0, 0], 0, 3], [[3, -2, 0], 0, 2], [[2, -1], 1, 3], [[6, 0, 0], 0, 1], [[3, 0, 0], -1, 1]]);
       const Fc = integ(c), v = pv(Fc, b) - pv(Fc, a);
-      const ch = chooseNum(v, [pv(c, b) - pv(c, a), pv(Fc, b), v * 2, v + 1].filter(z => z !== v));
-      return { q: `${intS(a, b)} ${intg(c)} dx は？`, ...ch, hint: "xⁿ → xⁿ⁺¹ / (n + 1) で積分して、F(上) − F(下)", exp: `F(x) = ${poly(Fc, ["x³", "x²", "x", ""].slice(-Fc.length))}<br>F(${N(b)}) − F(${N(a)}) = ${N(pv(Fc, b))} − ${pn(pv(Fc, a))} = <b>${N(v)}</b>`, st: { c, a, b, view: { xmin: Math.min(a, 0) - 1.5, xmax: b + 1.5, ymin: -2, ymax: Math.max(...[a, b, (a + b) / 2].map(x => pv(c, x))) + 2, equal: false } }, hl: "area" };
+      const Fb = pv(Fc, b), Fa = pv(Fc, a), VS = ["x³", "x²", "x", ""], vs = VS.slice(-c.length), Vs = VS.slice(-Fc.length);
+      const ch = chooseNumWhy(v, [
+        [pv(c, b) - pv(c, a), `積分しないで f(${N(b)}) − f(${N(a)}) を 計算している。先に 積分して F(x) を つくる`],
+        [Fb, `F(${N(b)}) だけで、F(${N(a)}) = ${N(Fa)} を ひいていない`],
+        [pv(c, b) * b - pv(c, a) * a, "積分で (n + 1) で わるのを わすれている。xⁿ → xⁿ⁺¹ ÷ (n + 1)"],
+        [v * 2, `計算ミス。F(x) を 微分すると ${P(...c)} に もどるか たしかめよう`],
+        [v + 1, `計算ミス。F(${N(b)}) − F(${N(a)}) = ${N(Fb)} − ${pn(Fa)} を もう一度`],
+        [v - 1, `計算ミス。F(${N(b)}) − F(${N(a)}) = ${N(Fb)} − ${pn(Fa)} を もう一度`],
+      ].filter(z => z[0] !== v));
+      // 項ごとに 積分：3x² → x³ など
+      const terms = c.map((k, i) => k ? `${poly([k], [vs[i]])} → ${poly([k / (c.length - i)], [Vs[i]])}` : null).filter(Boolean).join("、");
+      // F(x) に 数を入れた式：x³ − x² に 2 → 2³ − 2²
+      const put = x => { let s = ""; Fc.forEach((k, i) => { if (!k || !Vs[i]) return; const e = Fc.length - 1 - i, kk = Math.abs(k), body = (kk === 1 ? "" : F(kk) + "·") + pn(x) + (e > 1 ? "²³"[e - 2] : ""); s += s ? (k < 0 ? ` ${MI} ` : " + ") + body : (k < 0 ? MI : "") + body; }); return s; };
+      return { q: `${intS(a, b)} ${intg(c)} dx は？`, ...ch, hint: "xⁿ → xⁿ⁺¹ / (n + 1) で積分して、F(上) − F(下)", exp: [
+        ["項ごとに 積分する：xⁿ → xⁿ⁺¹ ÷ (n + 1)（係数は そのまま かける）", terms],
+        ["まとめて F(x) にする", `F(x) = ${poly(Fc, Vs)}`],
+        [`上の数 x = ${N(b)} を 入れる`, `F(${N(b)}) = ${put(b)} = ${N(Fb)}`],
+        [`下の数 x = ${N(a)} を 入れる`, a === 0 ? "F(0) = 0" : `F(${N(a)}) = ${put(a)} = ${N(Fa)}`],
+        ["F(上) − F(下)", `${N(Fb)} − ${pn(Fa)} = <b>${N(v)}</b>`],
+      ], point: "∫ は F(上の数) − F(下の数)。下の数の 値も 忘れず ひく", st: { c, a, b, view: { xmin: Math.min(a, 0) - 1.5, xmax: b + 1.5, ymin: -2, ymax: Math.max(...[a, b, (a + b) / 2].map(x => pv(c, x))) + 2, equal: false } }, hl: "area" };
     }
     const al = rint(-2, 1), be = al + rint(1, 3), w = be - al, area = w ** 3 / 6;
     const c = [-1, al + be, -al * be]; // y = −(x − α)(x − β)
-    const ch = choose(F(area), [F(w ** 3 / 3), F(w ** 2 / 2), F(w ** 3 / 2), F(area + 1)]);
-    return { q: `放物線 y = ${P(...c)} と x 軸 で囲まれた部分の面積は？`, ...ch, hint: `x 軸との交点は x = ${N(al)}, ${N(be)}。∫ で計算するか、公式 (β − α)³ ÷ 6`, exp: `交点 x = ${N(al)}, ${N(be)}<br>−(x − α)(x − β) を α から β まで積分すると (β − α)³ ÷ 6 になる<br>面積 = (${N(be)} − ${pn(al)})³ ÷ 6 = ${w ** 3} ÷ 6 = <b>${F(area)}</b>`, st: { c, a: al, b: be, view: { xmin: al - 1.5, xmax: be + 1.5, ymin: -2, ymax: (w / 2) ** 2 + 1.5, equal: false } }, hl: "area" };
+    const ch = chooseWhy(F(area), [
+      [F(w ** 3 / 3), "6 ではなく 3 で わっている。公式は (β − α)³ ÷ 6"],
+      [F(w ** 2 / 2), "2 乗 ÷ 2 に している。公式は 3 乗 ÷ 6：(β − α)³ ÷ 6"],
+      [F(w ** 3 / 2), "6 ではなく 2 で わっている。公式は (β − α)³ ÷ 6"],
+      [F(area + 1), `計算ミス。(${N(be)} − ${pn(al)})³ ÷ 6 を もう一度`],
+    ]);
+    return { q: `放物線 y = ${P(...c)} と x 軸 で囲まれた部分の面積は？`, ...ch, hint: `x 軸との交点は x = ${N(al)}, ${N(be)}。∫ で計算するか、公式 (β − α)³ ÷ 6`, exp: [
+      ["x 軸との 交点を 出す：y = 0 とおいて 因数分解", `${P(...c)} = ${MI}${sh("x", al)}${sh("x", be)} = 0 → x = ${N(al)}, ${N(be)}`],
+      [`x² の係数が −1 なので 上に凸（∩）。x = ${N(al)} から ${N(be)} までは x 軸の上にある`, `面積 = ${intS(al, be)} (${P(...c)}) dx`],
+      ["公式：−(x − α)(x − β) を α から β まで 積分すると (β − α)³ ÷ 6", `面積 = ${fr("(β − α)³", 6)}`],
+      ["β − α を 計算する", `β − α = ${N(be)} − ${pn(al)} = ${w}`],
+      ["3 乗して 6 で わる", `${w}³ ÷ 6 = ${w ** 3} ÷ 6 = <b>${F(area)}</b>`],
+    ], point: "−(x − α)(x − β) と x 軸で 囲む面積 = (β − α)³ ÷ 6", st: { c, a: al, b: be, view: { xmin: al - 1.5, xmax: be + 1.5, ymin: -2, ymax: (w / 2) ** 2 + 1.5, equal: false } }, hl: "area" };
   },
 });

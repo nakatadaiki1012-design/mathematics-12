@@ -86,7 +86,7 @@ function chooseW(correct, cands, n = 4, fallback) {
 }
 /* 理由つきの 数の 4 択：cands = [[数, 理由], ...] */
 function chooseNumW(correct, cands, fmt = N) {
-  return chooseW(fmt(correct), cands.map(([v, w]) => [fmt(v), w]), 4, () => fmt(correct + nz(-4, 4)));
+  return chooseW(fmt(correct), cands.map(([v, w]) => [v == null ? null : fmt(v), w]), 4, () => fmt(correct + nz(-4, 4)));
 }
 /* 数の 4 択（近い数を まちがいに） */
 function chooseNum(correct, cands, fmt = N) {
