@@ -85,7 +85,7 @@ function enterStage() {
   if (k === "rui" || k === "ens") { S.prob = u.gen(); return; }
   const L = LESSON[u.id][k], c = L.why ? chooseW(L.ok, L.ng.map((g, i) => [g, L.why[i]])) : choose(L.ok, L.ng);
   // q：右の説明用（場面つき）、qs：グラフの上の大きな文字（問いだけ）
-  S.prob = Object.assign({}, L, { ch: c.ch, ans: c.ans, q: L.say ? `<span class="say">${L.say}</span>${L.q}` : L.q, qs: L.q });
+  S.prob = Object.assign({}, L, { ch: c.ch, ans: c.ans, why: c.why, q: L.say ? `<span class="say">${L.say}</span>${L.q}` : L.q, qs: L.q });
 }
 
 /* ---------- ステージ（グラフ） ---------- */
