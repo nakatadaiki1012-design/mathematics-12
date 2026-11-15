@@ -75,6 +75,19 @@ function choose(correct, cands, n = 4, fallback) {
   const ch = shuffle(out);
   return { ch, ans: ch.indexOf(correct) };
 }
+/* 理由つきの 4 択：cands = [[まちがいの選択肢, なぜちがうか], ...]
+   → { ch, ans, why: { 選択肢: 理由 } }。えらんだ まちがいに 理由を見せる */
+function chooseW(correct, cands, n = 4, fallback) {
+  const why = {};
+  cands.forEach(([c, w]) => { if (c != null && c !== correct && !(c in why)) why[c] = w; });
+  const r = choose(correct, cands.map(c => c[0]), n, fallback);
+  r.why = why;
+  return r;
+}
+/* 理由つきの 数の 4 択：cands = [[数, 理由], ...] */
+function chooseNumW(correct, cands, fmt = N) {
+  return chooseW(fmt(correct), cands.map(([v, w]) => [fmt(v), w]), 4, () => fmt(correct + nz(-4, 4)));
+}
 /* 数の 4 択（近い数を まちがいに） */
 function chooseNum(correct, cands, fmt = N) {
   const c = choose(fmt(correct), cands.map(fmt), 4, () => fmt(correct + nz(-4, 4)));

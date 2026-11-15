@@ -78,12 +78,12 @@ function goStage(i) {
 }
 /* 段階に入るとき：問題をつくる */
 function enterStage() {
-  S.exI = 0; S.tries = 0; S.done = false; S.hintOn = false; S.wrong = -1; S.prob = null;
+  S.exI = 0; S.tries = 0; S.done = false; S.hintOn = false; S.wrong = -1; S.firstWrong = -1; S.prob = null;
   if (S.tab !== "lesson") return;
   const k = stgKey(), u = cur();
   if (k === "ex") return;
   if (k === "rui" || k === "ens") { S.prob = u.gen(); return; }
-  const L = LESSON[u.id][k], c = choose(L.ok, L.ng);
+  const L = LESSON[u.id][k], c = L.why ? chooseW(L.ok, L.ng.map((g, i) => [g, L.why[i]])) : choose(L.ok, L.ng);
   // q：右の説明用（場面つき）、qs：グラフの上の大きな文字（問いだけ）
   S.prob = Object.assign({}, L, { ch: c.ch, ans: c.ans, q: L.say ? `<span class="say">${L.say}</span>${L.q}` : L.q, qs: L.q });
 }
@@ -230,7 +230,7 @@ function onClick(e) {
   if (t.id === "hintBtn") { S.hintOn = true; renderCard(); return; }
   if (t.id === "moreBtn") { enterStage(); renderCard(); draw(); return; }
   if (t.dataset.dch != null) { drillAnswer(+t.dataset.dch, t); return; }
-  if (t.id === "dNext") { S.drill.i++; S.done = false; S.tries = 0; S.hintOn = false; S.wrong = -1; renderCard(); draw(); return; }
+  if (t.id === "dNext") { S.drill.i++; S.done = false; S.tries = 0; S.hintOn = false; S.wrong = -1; S.firstWrong = -1; renderCard(); draw(); return; }
   if (t.dataset.scope) { startDrill(t.dataset.scope); return; }
   if (t.dataset.goto) { location.hash = t.dataset.goto; }
 }
@@ -268,9 +268,25 @@ function choicesHTML(p, attr) {
     return `<button type="button" class="cbtn ${cls}" ${attr}="${i}" ${S.done || (S.tries && S.wrong === i) ? "disabled" : ""}>${c}</button>`;
   }).join("")}</div>`;
 }
+/* 解説：exp が [[やること, 式], ...] なら 番号つきの 手順で見せる */
+function expHTML(p) {
+  if (!Array.isArray(p.exp)) return `<div class="exp-old">${p.exp}</div>`;
+  const NUM = "①②③④⑤⑥⑦⑧";
+  return `<ol class="xsteps">${p.exp.map(([t, m], i) => `<li><span class="xn">${NUM[i] || i + 1}</span><div><div class="xt">${t}</div>${m ? `<div class="xm">${m}</div>` : ""}</div></li>`).join("")}</ol>`;
+}
+/* えらんだ まちがいの 理由 */
+const whyOf = (p, i) => (i >= 0 && p.why && p.why[p.ch[i]]) || "";
 function feedbackHTML(p) {
-  if (S.done) return `<div class="note ${S.gotIt ? "good" : "bad"}"><span class="ttl">${S.gotIt ? "⭕ せいかい！" : "答えはこれ"}</span>${p.exp}<span class="see">図で たしかめよう</span></div>`;
-  if (S.tries) return `<div class="note hint"><span class="ttl">おしい！ もう一度えらんでみよう</span>💡 ${p.hint}</div>`;
+  if (S.done) {
+    const miss = S.firstWrong != null && S.firstWrong >= 0 ? S.firstWrong : -1, w = whyOf(p, miss);
+    return `<div class="note ${S.gotIt ? "good" : "bad"} xp">
+      <div class="ansbox"><span>${S.gotIt ? "⭕ せいかい！" : "答え"}</span><b>${p.ch[p.ans]}</b></div>
+      ${w ? `<div class="why"><span class="wl">${S.gotIt ? "さっきの" : "あなたの"} ${p.ch[miss]} は？</span>${w}</div>` : ""}
+      <div class="xh">解き方</div>${expHTML(p)}
+      ${p.point ? `<div class="tip">💡 コツ：${p.point}</div>` : ""}
+      <span class="see">図で たしかめよう</span></div>`;
+  }
+  if (S.tries) { const w = whyOf(p, S.firstWrong); return `<div class="note hint"><span class="ttl">おしい！ もう一度えらんでみよう</span>${w ? `<div class="why"><span class="wl">${p.ch[S.firstWrong]} は？</span>${w}</div>` : ""}💡 ${p.hint}</div>`; }
   if (S.hintOn) return `<div class="note hint">💡 ${p.hint}</div>`;
   return "";
 }
@@ -280,7 +296,7 @@ function qHTML(u) {
   if (k === "intro") top = `<div class="use"><b>どこで使う？</b>　${LESSON[u.id].use}</div>`;
   else if (k === "ens") { const n = Math.min(prog(u.id).ok, PASS); top = `<div class="meter">${Array.from({ length: PASS }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}<span>${n >= PASS ? "合格！ 続けて練習もできる" : LEADS.ens}</span></div>`; }
   else top = `<p class="lead">${p.lead || LEADS[k]}</p>`;
-  return `${top}<div class="qbox"><span class="tag ${k === "B" || k === "C" ? "adv" : ""}">${TAGS[k]}</span>${p.q}</div>${choicesHTML(p, "data-ch")}${feedbackHTML(p)}`;
+  return `${top}<div class="qbox"><span class="tag ${k === "B" || k === "C" ? "adv" : ""}">${TAGS[k]}</span>${p.q}</div>${S.done ? "" : choicesHTML(p, "data-ch")}${feedbackHTML(p)}`;
 }
 function qFoot() {
   const k = stgKey(), last = S.stg === STAGES.length - 1;
@@ -303,7 +319,7 @@ function answer(i, btn) {
     const msg = `⭕ せいかい！ 🪙 +${r.coins}${r.streak >= 2 ? `　🔥 ${r.streak} 連続` : ""}`;
     if (k === "ens") { pr.ok++; if (pr.ok === PASS) { toast("🎉 合格！ 🪙 +50"); addCoins(50); } else toast(msg); } else toast(msg);
     if (k === "C" && !pr.done.C) { rw(); store.stat.cWin++; }
-  } else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); onAnswer(true, false); }
+  } else if (!S.tries) { S.tries = 1; S.wrong = i; S.firstWrong = i; btn.classList.add("shake"); onAnswer(true, false); }
   else { S.done = true; S.gotIt = false; S.wrong = i; }
   if (S.done && S.gotIt && k !== "ens") prog(u.id).done[k] = true; // 答えを見ただけなら 完了にしない
   save(); checkBadges(); renderCard(); renderLib(); draw();
@@ -317,7 +333,7 @@ function startDrill(scope) {
   const order = [];
   while (order.length < DRILL_N) order.push(...shuffle(pool));
   S.drill = { scope, qs: order.slice(0, DRILL_N).map(u => ({ uid: u.id, p: u.gen(), ok: null })), i: 0, score: 0 };
-  S.done = false; S.tries = 0; S.hintOn = false; S.wrong = -1;
+  S.done = false; S.tries = 0; S.hintOn = false; S.wrong = -1; S.firstWrong = -1;
   renderLib(); renderCard(); draw();
 }
 function renderDrillCard() {
@@ -342,7 +358,7 @@ function renderDrillCard() {
   const q = d.qs[d.i], p = q.p;
   B.innerHTML = `<div class="bar"><i style="width:${d.i / DRILL_N * 100}%"></i></div>
     <div class="meter"><span>${d.i + 1} / ${DRILL_N} 問　·　${byId[q.uid].name}</span><span class="pdots">正解 ${d.score}</span></div>
-    <div class="qbox"><span class="tag">問題</span>${p.q}</div>${choicesHTML(p, "data-dch")}${feedbackHTML(p)}`;
+    <div class="qbox"><span class="tag">問題</span>${p.q}</div>${S.done ? "" : choicesHTML(p, "data-dch")}${feedbackHTML(p)}`;
   Ft.innerHTML = S.done ? `<span class="sp"></span><button type="button" class="btn pri" id="dNext">${d.i + 1 < DRILL_N ? "次の問題 ▶" : "結果を見る ▶"}</button>`
     : (S.hintOn || S.tries ? "" : `<button type="button" class="hintbtn" id="hintBtn">💡 ヒント</button>`);
 }
@@ -350,7 +366,7 @@ function drillAnswer(i, btn) {
   const d = S.drill, q = d.qs[d.i];
   if (S.done) return;
   if (i === q.p.ans) { S.done = true; S.gotIt = true; S.wrong = -1; if (q.ok == null) { q.ok = !S.tries; if (!S.tries) d.score++; } const r = onAnswer(!S.tries, true); toast(`⭕ せいかい！ 🪙 +${r.coins}${r.streak >= 2 ? `　🔥 ${r.streak} 連続` : ""}`); }
-  else if (!S.tries) { S.tries = 1; S.wrong = i; btn.classList.add("shake"); q.ok = false; onAnswer(true, false); }
+  else if (!S.tries) { S.tries = 1; S.wrong = i; S.firstWrong = i; btn.classList.add("shake"); q.ok = false; onAnswer(true, false); }
   else { S.done = true; S.gotIt = false; S.wrong = i; q.ok = false; }
   renderCard(); draw();
 }
